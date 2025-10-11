@@ -9,7 +9,46 @@ import SearchIcon from '@/assets/icon/search.svg';
 import ArtistDataTable, { ArtistTableColumn, SortDirection } from '@/components/artist/ArtistDataTable';
 
 
-const columns: ArtistTableColumn<ProductRow>[] = [
+type RowEx = ProductRow & {
+  // 서버 productId 
+  productId?: string;
+  // 서버 UUID
+  productUuid?: string;
+  // 최근 작성 스냅샷
+  payloadSnapshot?: ProductCreatePayload;
+};
+
+type ArtistProductItem = {
+  productUuid?: string;
+  uuid?: string;
+  productUUID?: string;
+  product?: { uuid?: string };
+  productId?: string | number;
+  id?: string | number;
+  productNumber?: string | number;
+
+  artist?: { name?: string };
+  brandName?: string;
+  productName?: string;
+  name?: string;
+
+  registeredDate?: string;
+  registrationDate?: string;
+  addedAt?: string;
+  createdAt?: string;
+
+  sellingStatus?: string;
+  status?: string;
+  selling?: boolean;
+};
+
+type PublicProductListItem = {
+  brandName?: string;
+  name?: string;
+  productUuid?: string;
+};
+
+const columns: ArtistTableColumn<RowEx>[] = [
   { key: 'id', header: '상품번호', align: 'center', sortable: true },
   { key: 'name', header: '상품명', align: 'center', sortable: true },
   { key: 'author', header: '작가명', align: 'center', sortable: true },
@@ -24,12 +63,12 @@ function getPageRange(current: number, total: number, count = 5) {
   if (total <= 1) return [1];
   const half = Math.floor(count / 2);
   let start = Math.max(1, current - half);
-  let end = Math.min(total, start + count - 1);
+  const end = Math.min(total, start + count - 1);
   start = Math.max(1, end - count + 1);
   return Array.from({ length: end - start + 1 }, (_, i) => start + i);
 }
 
-// 폼 → 판매상태 계산
+// 폼 → 판매상태
 function computeStatusFromPayload(p: ProductCreatePayload): 'BEFORE_SELLING' | 'SELLING' | 'SOLD_OUT' | 'END_OF_SALE' {
   const now = new Date();
   if (p.plannedSale) {
@@ -54,11 +93,11 @@ const STATUS_LABEL: Record<string, string> = {
 // 로컬 스냅샷 저장 키
 const STORAGE_KEY = 'productFormSnapshotsById';
 
-// 스냅샷 load/save 
+// 스냅샷 load/save
 function loadCache(): Record<string, ProductCreatePayload> {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
-    return raw ? JSON.parse(raw) : {};
+    return raw ? (JSON.parse(raw) as Record<string, ProductCreatePayload>) : {};
   } catch {
     return {};
   }
@@ -73,15 +112,22 @@ const UUID_BY_ID_KEY = 'uuidByProductId';
 const UUID_BY_NAME_KEY = 'uuidByBrandAndName';
 
 function loadJson<T>(k: string, fallback: T): T {
-  try { const raw = localStorage.getItem(k); return raw ? JSON.parse(raw) as T : fallback; } catch { return fallback; }
+  try {
+    const raw = localStorage.getItem(k);
+    return raw ? (JSON.parse(raw) as T) : fallback;
+  } catch {
+    return fallback;
+  }
 }
 function saveJson<T>(k: string, v: T) {
-  try { localStorage.setItem(k, JSON.stringify(v)); } catch {}
+  try {
+    localStorage.setItem(k, JSON.stringify(v));
+  } catch {}
 }
 
 export default function ProductsPage() {
-  const [rows, setRows] = useState<ProductRow[]>([]);
-  const [sortKey, setSortKey] = useState<keyof ProductRow | undefined>(undefined);
+  const [rows, setRows] = useState<RowEx[]>([]);
+  const [sortKey, setSortKey] = useState<keyof RowEx | undefined>(undefined);
   const [sortDirection, setSortDirection] = useState<SortDirection>('asc');
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
 
@@ -99,24 +145,24 @@ export default function ProductsPage() {
 
   const [openModal, setOpenModal] = useState(false);
   const [mode, setMode] = useState<'create' | 'edit'>('create');
-  const [editingRow, setEditingRow] = useState<(ProductRow & { productId?: string }) | null>(null);
+  const [editingRow, setEditingRow] = useState<RowEx | null>(null);
 
   // 스냅샷 캐시
   const snapshotsRef = useRef<Record<string, ProductCreatePayload>>({});
   // uuid 캐시
-  const uuidByIdRef   = useRef<Record<string, string>>({});
+  const uuidByIdRef = useRef<Record<string, string>>({});
   const uuidByNameRef = useRef<Record<string, string>>({});
 
   const updateSort = (key: string, direction: SortDirection) => {
-    setSortKey(key as keyof ProductRow);
+    setSortKey(key as keyof RowEx);
     setSortDirection(direction);
   };
 
   // 최초 마운트: 로컬 스토리지 → 메모리 적재
   useEffect(() => {
     snapshotsRef.current = { ...snapshotsRef.current, ...loadCache() };
-    uuidByIdRef.current   = loadJson(UUID_BY_ID_KEY, {});
-    uuidByNameRef.current = loadJson(UUID_BY_NAME_KEY, {});
+    uuidByIdRef.current = loadJson(UUID_BY_ID_KEY, {} as Record<string, string>);
+    uuidByNameRef.current = loadJson(UUID_BY_NAME_KEY, {} as Record<string, string>);
   }, []);
 
   // 목록 조회 (작가 전용, 서버 0기반)
@@ -136,21 +182,28 @@ export default function ProductsPage() {
         });
         if (cancelled) return;
 
-        const elements = Number(data.totalElements ?? 0);
-        const pages = Number(data.totalPages ?? 0) || Math.max(1, Math.ceil(elements / size));
+        const elements = Number((data as { totalElements?: number }).totalElements ?? 0);
+        const pages =
+          Number((data as { totalPages?: number }).totalPages ?? 0) ||
+          Math.max(1, Math.ceil(elements / size));
         setTotalElements(elements);
         setTotalPages(pages);
 
-        const mapped: ProductRow[] = (data.content ?? []).map((p: any, idx: number) => {
+        const content = ((data as { content?: unknown[] }).content ?? []) as ArtistProductItem[];
+
+        const mapped: RowEx[] = content.map((p, idx) => {
           // 가능한 후보에서 uuid 추출
           let productUuid: string | undefined =
             p.productUuid ?? p.uuid ?? p.productUUID ?? p.product?.uuid ?? undefined;
 
           const productId: string | undefined =
-            p.productId != null ? String(p.productId) :
-            p.id != null ? String(p.id) :
-            p.productNumber != null ? String(p.productNumber) :
-            undefined;
+            p.productId != null
+              ? String(p.productId)
+              : p.id != null
+              ? String(p.id)
+              : p.productNumber != null
+              ? String(p.productNumber)
+              : undefined;
 
           // 캐시로 보강
           if (!productUuid && productId) {
@@ -164,7 +217,11 @@ export default function ProductsPage() {
           }
 
           const created =
-            p.registeredDate ?? p.registrationDate ?? p.addedAt ?? p.createdAt ?? new Date().toISOString();
+            p.registeredDate ??
+            p.registrationDate ??
+            p.addedAt ??
+            p.createdAt ??
+            new Date().toISOString();
           const createdDate = new Date(created);
           const createdAt = isNaN(createdDate.getTime())
             ? new Date().toLocaleDateString('en-CA')
@@ -172,8 +229,10 @@ export default function ProductsPage() {
 
           // 스냅샷 우선 없으면 서버 상태
           const snap = productId ? snapshotsRef.current[productId] : undefined;
-          let rawCode: string =
-            p.sellingStatus ?? p.status ?? (typeof p.selling === 'boolean' ? (p.selling ? 'SELLING' : 'STOPPED') : 'SELLING');
+          const rawCode =
+            p.sellingStatus ??
+            p.status ??
+            (typeof p.selling === 'boolean' ? (p.selling ? 'SELLING' : 'STOPPED') : 'SELLING');
           let code = String(rawCode).toUpperCase();
           if (snap) code = computeStatusFromPayload(snap);
           const status = STATUS_LABEL[code] ?? code;
@@ -184,8 +243,8 @@ export default function ProductsPage() {
             author: p.artist?.name ?? p.brandName ?? '내 브랜드',
             status,
             createdAt,
-            productUuid,  
-            productId, 
+            productUuid,
+            productId,
             payloadSnapshot: productId ? snapshotsRef.current[productId] : undefined,
           };
         });
@@ -198,7 +257,9 @@ export default function ProductsPage() {
         if (!cancelled) setLoading(false);
       }
     })();
-    return () => { cancelled = true; };
+    return () => {
+      cancelled = true;
+    };
   }, [page, size, refreshKey, searchTerm]);
 
   // 페이지 이동
@@ -209,7 +270,7 @@ export default function ProductsPage() {
   };
 
   // 선택된 행들
-  const selectedRows = useMemo(
+  const selectedRows = useMemo<RowEx[]>(
     () => rows.filter((r) => selectedIds.includes(r.id)),
     [rows, selectedIds],
   );
@@ -231,7 +292,7 @@ export default function ProductsPage() {
   };
 
   // brand+name 일치 항목의 uuid
-  const resolveUuidForRow = async (row: ProductRow): Promise<string | undefined> => {
+  const resolveUuidForRow = async (row: RowEx): Promise<string | undefined> => {
     if (row.productUuid) return row.productUuid;
 
     if (row.productId) {
@@ -240,7 +301,7 @@ export default function ProductsPage() {
     }
 
     const brand = (row.author ?? '').trim();
-    const name  = (row.name ?? '').trim();
+    const name = (row.name ?? '').trim();
     const nameKey = `${brand}|||${name}`;
     if (uuidByNameRef.current[nameKey]) return uuidByNameRef.current[nameKey];
 
@@ -248,10 +309,14 @@ export default function ProductsPage() {
     const SIZE = 30;
     for (let p = 1; p <= MAX_PAGES; p++) {
       const list = await getProducts({ page: p, size: SIZE, sort: 'newest' });
-      const hit = (list.products ?? []).find(prod =>
-        (prod.brandName ?? '').trim() === brand &&
-        (prod.name ?? '').trim() === name
+      const products = (list as { products?: unknown[] }).products as
+        | PublicProductListItem[]
+        | undefined;
+
+      const hit = products?.find(
+        (prod) => (prod.brandName ?? '').trim() === brand && (prod.name ?? '').trim() === name,
       );
+
       if (hit?.productUuid) {
         // 캐시에 저장
         if (row.productId) {
@@ -262,18 +327,18 @@ export default function ProductsPage() {
         saveJson(UUID_BY_NAME_KEY, uuidByNameRef.current);
 
         // 행에도 즉시 반영
-        setRows(prev => prev.map(r => r.id === row.id ? ({ ...r, productUuid: hit.productUuid }) : r));
+        setRows((prev) => prev.map((r) => (r.id === row.id ? { ...r, productUuid: hit.productUuid } : r)));
         return hit.productUuid;
       }
 
-      const total = list.totalPages ?? p;
+      const total = (list as { totalPages?: number }).totalPages ?? p;
       if (p >= total) break;
     }
     return undefined;
   };
 
-  // 행 클릭 
-  const handleRowClick = async (row: ProductRow & { productId?: string }) => {
+  // 행 클릭
+  const handleRowClick = async (row: RowEx) => {
     const uuid = await resolveUuidForRow(row);
 
     // 스냅샷 보강
@@ -290,9 +355,9 @@ export default function ProductsPage() {
 
   // 상단 - 선택 수정
   const handleTopEdit = () => {
-    const row = selectedRows[0] as ProductRow & { productId?: string };
+    const row = selectedRows[0];
     if (!row) return;
-    handleRowClick(row);
+    void handleRowClick(row);
   };
 
   // 상단 - 선택 삭제
@@ -302,9 +367,9 @@ export default function ProductsPage() {
     setLoading(true);
 
     // uuid
-    const withUuid: Array<{ row: ProductRow; uuid: string }> = [];
-    const unresolved: ProductRow[] = [];
-    for (const r of selectedRows as ProductRow[]) {
+    const withUuid: Array<{ row: RowEx; uuid: string }> = [];
+    const unresolved: RowEx[] = [];
+    for (const r of selectedRows) {
       const uuid = await resolveUuidForRow(r);
       if (uuid) withUuid.push({ row: r, uuid });
       else unresolved.push(r);
@@ -315,7 +380,7 @@ export default function ProductsPage() {
     if (!withUuid.length) {
       alert(
         '선택한 항목에서 productUuid를 찾지 못해 삭제할 수 없습니다.\n' +
-        (unresolved.length ? unresolved.map(r => `- ${r.author} / ${r.name}`).join('\n') : '')
+          (unresolved.length ? unresolved.map((r) => `- ${r.author} / ${r.name}`).join('\n') : ''),
       );
       return;
     }
@@ -324,26 +389,31 @@ export default function ProductsPage() {
     if (!ok) return;
 
     setLoading(true);
-    const results = await Promise.allSettled(withUuid.map(x => deleteProduct(x.uuid)));
+    const results = await Promise.allSettled(withUuid.map((x) => deleteProduct(x.uuid)));
     setLoading(false);
 
     const successUiIds = new Set(
-      results.map((res, i) => (res.status === 'fulfilled' ? withUuid[i].row.id : null)).filter(Boolean) as string[],
+      results
+        .map((res, i) => (res.status === 'fulfilled' ? withUuid[i].row.id : null))
+        .filter(Boolean) as string[],
     );
-    setRows(prev => prev.filter(r => !successUiIds.has(r.id)));
+    setRows((prev) => prev.filter((r) => !successUiIds.has(r.id)));
     setSelectedIds([]);
 
     const failed = results
       .map((res, i) => ({ res, row: withUuid[i].row }))
-      .filter(x => x.res.status === 'rejected') as Array<{ res: PromiseRejectedResult; row: ProductRow }>;
+      .filter((x): x is { res: PromiseRejectedResult; row: RowEx } => x.res.status === 'rejected');
 
     let msg = '';
     if (unresolved.length) {
-      msg += `uuid 미해결: ${unresolved.length}건\n` + unresolved.map(r => `- ${r.author} / ${r.name}`).join('\n') + '\n\n';
+      msg += `uuid 미해결: ${unresolved.length}건\n` + unresolved.map((r) => `- ${r.author} / ${r.name}`).join('\n') + '\n\n';
     }
     if (failed.length) {
-      msg += `삭제 실패: ${failed.length}건\n` +
-        failed.map(f => `- ${f.row.author} / ${f.row.name}: ${(f.res.reason as Error)?.message ?? '오류'}`).join('\n');
+      msg +=
+        `삭제 실패: ${failed.length}건\n` +
+        failed
+          .map((f) => `- ${f.row.author} / ${f.row.name}: ${(f.res.reason as Error)?.message ?? '오류'}`)
+          .join('\n');
     }
     alert(msg || '삭제가 완료되었습니다.');
   };
@@ -354,10 +424,8 @@ export default function ProductsPage() {
     const cache = loadCache();
     cache[productId] = payload;
     saveCache(cache);
-    setRows(prev =>
-      prev.map(r => (('productId' in r && (r as any).productId === productId)
-        ? ({ ...(r as any), payloadSnapshot: payload })
-        : r))
+    setRows((prev) =>
+      prev.map((r) => (r.productId === productId ? { ...r, payloadSnapshot: payload } : r)),
     );
   };
 
@@ -403,8 +471,12 @@ export default function ProductsPage() {
       {/* 페이지네이션 */}
       <div className="relative mt-6 flex items-center justify-center">
         <nav className="flex items-center gap-2 text-sm text-[var(--color-gray-700)]">
-          <button onClick={() => gotoPage(1)} disabled={page <= 1} className="px-2 py-1 hover:text-primary disabled:opacity-40" aria-label="First">«</button>
-          <button onClick={() => gotoPage(Math.max(1, page - 1))} disabled={page <= 1} className="px-2 py-1 hover:text-primary disabled:opacity-40" aria-label="Previous">‹</button>
+          <button onClick={() => gotoPage(1)} disabled={page <= 1} className="px-2 py-1 hover:text-primary disabled:opacity-40" aria-label="First">
+            «
+          </button>
+          <button onClick={() => gotoPage(Math.max(1, page - 1))} disabled={page <= 1} className="px-2 py-1 hover:text-primary disabled:opacity-40" aria-label="Previous">
+            ‹
+          </button>
 
           {getPageRange(page, totalPages, 5).map((n) => (
             <button
@@ -417,8 +489,11 @@ export default function ProductsPage() {
             </button>
           ))}
 
-          <button onClick={() => gotoPage(Math.min(totalPages, page + 1))} disabled={page >= totalPages} className="px-2 py-1 hover:text-primary disabled:opacity-40" aria-label="Next">›</button>
-          <button onClick={() => gotoPage(totalPages)} disabled={page >= totalPages} className="px-2 py-1 hover:text-primary disabled:opacity-40" aria-label="Last">»</button>
+          <button onClick={() => gotoPage(Math.min(totalPages, page + 1))} disabled={page >= totalPages} className="px-2 py-1 hover:text-primary disabled:opacity-40" aria-label="Next">
+            ›
+          </button>
+          <button onClick={() => gotoPage(totalPages)} disabled={page >= totalPages} className="px-2 py-1 hover:text-primary disabled:opacity-40" aria-label="Last">
+            »</button>
         </nav>
 
         <ProductCreateModal
@@ -426,11 +501,13 @@ export default function ProductsPage() {
           onClose={() => setOpenModal(false)}
           mode={mode}
           productUuid={editingRow?.productUuid}
-          productId={(editingRow as any)?.productId}
+          productId={editingRow?.productId}
           initialBrand="내 브랜드"
           initialPayload={editingRow?.payloadSnapshot}
           onCreated={handleCreated}
-          onUpdated={() => {setRefreshKey(k => k + 1)}}
+          onUpdated={() => {
+            setRefreshKey((k) => k + 1);
+          }}
           onSaveSnapshot={handleSaveSnapshot}
           onLoadBizFromProfile={async () => ({
             companyName: '모리모리 스튜디오',

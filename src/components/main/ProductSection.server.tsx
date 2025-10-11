@@ -46,26 +46,70 @@ function buildQuery(kind: Kind, params?: ProductListParams) {
   return qs ? `?${qs}` : '';
 }
 
-// 서로 다른 응답 스키마 -> 페이지형으로 통일
-function normalizeToPaged(
-  input:
-    | ApiResponse<ProductListData>
-    | { code: string; message: string; data: ProductListItem[] | null }
-    | null,
-  fallbackSize: number
-): ProductListData {
-  if (!input) return { page: 0, size: fallbackSize, totalElements: 0, totalPages: 0, products: [] };
-  const asPaged = input as ApiResponse<ProductListData>;
-  if (asPaged?.data && Array.isArray(asPaged.data.products)) return asPaged.data;
-
-  const asArray = input as { code: string; message: string; data: ProductListItem[] | null };
-  if (Array.isArray(asArray?.data)) {
-    const list = asArray.data;
-    const total = list.length;
-    return { page: 0, size: Math.max(fallbackSize, total), totalElements: total, totalPages: total ? 1 : 0, products: list };
-  }
-  return { page: 0, size: fallbackSize, totalElements: 0, totalPages: 0, products: [] };
+// 안전한 타입 가드
+function isProductListData(u: unknown): u is ProductListData {
+  if (typeof u !== 'object' || u === null) return false;
+  const o = u as {
+    products?: unknown;
+    page?: unknown;
+    size?: unknown;
+    totalElements?: unknown;
+    totalPages?: unknown;
+  };
+  return (
+    Array.isArray(o.products) &&
+    typeof o.page === 'number' &&
+    typeof o.size === 'number' &&
+    typeof o.totalElements === 'number' &&
+    typeof o.totalPages === 'number'
+  );
 }
+
+function isApiResponseOfProductListData(u: unknown): u is ApiResponse<ProductListData> {
+  if (typeof u !== 'object' || u === null) return false;
+  const o = u as { data?: unknown };
+  return isProductListData(o.data);
+}
+
+function isArrayEnvelope(u: unknown): u is { code?: string; message?: string; data: ProductListItem[] } {
+  if (typeof u !== 'object' || u === null) return false;
+  const o = u as { data?: unknown };
+  return Array.isArray(o.data);
+}
+
+// 서로 다른 응답 스키마 -> 페이지형으로 통일 
+function normalizeToPaged(input: unknown, fallbackSize: number): ProductListData {
+  const empty: ProductListData = {
+    page: 0,
+    size: fallbackSize,
+    totalElements: 0,
+    totalPages: 0,
+    products: [],
+  };
+  if (input == null) return empty;
+
+  // ApiResponse<ProductListData>
+  if (isApiResponseOfProductListData(input)) {
+    return input.data;
+  }
+
+  // { code, message, data: ProductListItem[] | null }
+  if (isArrayEnvelope(input)) {
+    const list = input.data;
+    const total = list.length;
+    return {
+      page: 0,
+      size: Math.max(fallbackSize, total),
+      totalElements: total,
+      totalPages: total ? 1 : 0,
+      products: list,
+    };
+  }
+
+  return empty;
+}
+
+
 
 async function fetchProducts(kind: Kind, params?: ProductListParams) {
   const url = `${process.env.NEXT_PUBLIC_API_BASE_URL}${resolvePath(kind)}${buildQuery(kind, params)}`;
@@ -78,7 +122,7 @@ async function fetchProducts(kind: Kind, params?: ProductListParams) {
     });
 
     const raw = await res.text();
-    let parsed: any = null;
+    let parsed: unknown = null;
     try { parsed = raw ? JSON.parse(raw) : null; } catch {}
 
     if (res.status === 404) return normalizeToPaged(parsed, params?.size ?? 12);

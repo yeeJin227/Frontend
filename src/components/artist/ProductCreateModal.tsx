@@ -794,8 +794,8 @@ const tagDict = useMemo(() => {
                     <p className="text-sm text-red-500 mt-2">{tagsError}</p>
                   ) : (
                     <div className="flex flex-wrap gap-3">
-                      {tagsRemote.map((t) => {
-  const label = ((t as any).tagName ?? (t as any).name ?? '').trim();
+                      {tagsRemote.map((t: RemoteTag) => {
+  const label = (t.tagName ?? '').trim(); 
   if (!label) return null;
   const checked = tags.includes(label);
   return (
@@ -804,15 +804,14 @@ const tagDict = useMemo(() => {
         type="checkbox"
         checked={checked}
         onChange={(e) =>
-          setTags((prev) =>
-            e.target.checked ? [...prev, label] : prev.filter((x) => x !== label)
-          )
+          setTags((prev) => (e.target.checked ? [...prev, label] : prev.filter((x) => x !== label)))
         }
       />
       <span>{label}</span>
     </label>
   );
 })}
+
 
                     </div>
                   )}
