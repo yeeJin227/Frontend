@@ -36,7 +36,7 @@ export default function ProductCard({
                 <div className="flex items-center justify-between gap-2">
                     <span className="text-[20px] font-bold text-primary">{discount}</span>
                     <span className="text-[22px] font-bold">{price}</span>
-                    <span className="text-[20px] mr-5 text-gray-300 line-through">{originalPrice}</span>
+                    <span className="text-[20px] mr-2 text-gray-300 line-through">{originalPrice}</span>
                 </div>
             
 

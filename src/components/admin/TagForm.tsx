@@ -53,7 +53,7 @@ export default function TagForm() {
           ref={inputRef}
           value={tagName}
           onChange={(e) => setTagName(e.target.value)}
-          placeholder="예) 모던"
+          placeholder="예) 귀염"
           className="rounded border px-3 py-2"
           disabled={loading}
         />

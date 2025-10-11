@@ -15,7 +15,6 @@ export default async function Home() {
     <Hero />
     <div className="px-[125px] pb-4">
       <ProductSection />
-      <ProductSection />
     </div>
     </>
   );
