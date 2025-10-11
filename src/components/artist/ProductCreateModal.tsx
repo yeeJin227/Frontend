@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from 'react';
 import X from '@/assets/icon/x.svg';
 import Paperclip from '@/assets/icon/paperclip2.svg';
 import NoticeEditor from '@/components/editor/NoticeEditor';
-import { createProduct, uploadProductImages } from '@/services/products';
+import { createProduct, deleteProduct, updateProduct, uploadProductImages /* updateProduct, deleteProduct */ } from '@/services/products';
 import { fetchCategoriesClient } from '@/lib/server/categories.client';
 import type { Category } from '@/types/category';
 import { fetchTagsClient } from '@/lib/server/tags.client';
@@ -21,14 +21,13 @@ import type {
   ProductAddonUI,
 } from '@/types/product';
 
-
 // "2025-10-10T12:30" → "2025-10-10T12:30:00"
 const toLocalDateTime = (s?: string | null) =>
   s ? (s.includes(':') && s.length === 16 ? `${s}:00` : s) : null;
 
 function toProductCreateDto(
   payload: ProductCreatePayload, // 사용자가 입력한 데이터
-  opts: { uploadedImages: UploadedImageInfo[]; tagDict: TagDict } // 업로드된 이미지 목록 & 태그이름 -> 태그id
+  opts: { uploadedImages: UploadedImageInfo[]; tagDict: TagDict }
 ): ProductCreateDto {
   const categoryId = Number(payload.category2 || payload.category1); // String → number
   const deliveryType =
@@ -94,12 +93,21 @@ function toProductCreateDto(
   };
 }
 
-
 type Props = {
   open: boolean;
   onClose: () => void;
-  onSubmit?: (payload: ProductCreatePayload) => Promise<void> | void;
+
+  // 생성
   onCreated?: (args: { productUuid: string; payload: ProductCreatePayload }) => void;
+
+  // 수정/삭제
+  mode?: 'create' | 'edit';
+  productUuid?: string;
+  initialPayload?: ProductCreatePayload;
+  onUpdated?: (args: { productUuid: string; payload: ProductCreatePayload }) => void;
+  onDeleted?: (args: { productUuid: string }) => void;
+
+  // 공통
   initialBrand?: string;
   initialBizInfo?: { companyName?: string; bizNumber?: string; ceoName?: string };
   onLoadBizFromProfile?: () =>
@@ -111,13 +119,18 @@ export default function ProductCreateModal({
   open,
   onClose,
   onCreated,
+  mode = 'create',
+  productUuid,
+  initialPayload,
+  onUpdated,
+  onDeleted,
   initialBrand = '모리모리',
   initialBizInfo,
   onLoadBizFromProfile,
 }: Props) {
 
   // ----- 기본 정보 -----
-  const [brand] = useState(initialBrand);
+  const [brand, setBrand] = useState(initialBrand);
   const [title, setTitle] = useState('');
   const [modelName, setModelName] = useState('');
   const [category1, setCategory1] = useState('');
@@ -127,7 +140,7 @@ export default function ProductCreateModal({
   const [catTree, setCatTree] = useState<Category[]>([]);
   const [catsLoading, setCatsLoading] = useState(false);
   const [catsErr, setCatsErr] = useState<string | null>(null);
-
+  
   // 태그 목록
   const [tagsRemote, setTagsRemote] = useState<RemoteTag[]>([]);
   const [tagsError, setTagsError] = useState<string | null>(null);
@@ -137,14 +150,14 @@ export default function ProductCreateModal({
   const [size, setSize] = useState('');
   const [material, setMaterial] = useState('');
   const [origin, setOrigin] = useState('');
-
+  
   // 가격/재고/구매제한
   const [price, setPrice] = useState<number>(0);
   const [discountRate, setDiscountRate] = useState<number>(0);
   const [stock, setStock] = useState<number>(0);
   const [minQty, setMinQty] = useState<number>(1);
   const [maxQty, setMaxQty] = useState<number>(0);
-
+  
   // 배송 정보
   const [bundleShipping, setBundleShipping] = useState<boolean>(true);
   const [shippingType, setShippingType] = useState<ShippingTypeUI>('FREE');
@@ -167,7 +180,6 @@ export default function ProductCreateModal({
   const removeOption = (idx: number) => setOptions((p) => p.filter((_, i) => i !== idx));
   const updateOption = (idx: number, patch: Partial<ProductOptionUI>) =>
     setOptions((p) => p.map((o, i) => (i === idx ? { ...o, ...patch } : o)));
-  
   const addAddon = () => setAddons((p) => [...p, { id: crypto.randomUUID(), name: '' }]);
   const removeAddon = (idx: number) => setAddons((p) => p.filter((_, i) => i !== idx));
   const updateAddon = (idx: number, patch: Partial<ProductAddonUI>) =>
@@ -186,10 +198,14 @@ export default function ProductCreateModal({
   const [editorValue, setEditorValue] = useState('');
   const [files, setFiles] = useState<File[]>([]);
   const [fileTypes, setFileTypes] = useState<UploadType[]>([]);
-  const [previews, setPreviews] = useState<string[]>([]); // 이미지 파일 미리보기 URL
-  const [uploadedImages, setUploadedImages] = useState<UploadedImageInfo[]>([]); // 업로드 API 성공 후 서버가 돌려준 S3 저장 정보(url/s3Key/type)
+  const [previews, setPreviews] = useState<string[]>([]);
+  const [uploadedImages, setUploadedImages] = useState<UploadedImageInfo[]>([]);
 
-  // 모달 열릴 때 태그 목록 로드
+  const [submitting, setSubmitting] = useState(false);
+
+  
+
+  // 모달 열릴 때 태그 로드
   useEffect(() => {
     if (!open) return;
     (async () => {
@@ -207,7 +223,7 @@ export default function ProductCreateModal({
     })();
   }, [open]);
 
-  // 모달이 열릴 때마다 최신 카테고리 트리 로드
+  // 모달 열릴 때 카테고리 로드
   useEffect(() => {
     if (!open) return;
     (async () => {
@@ -226,55 +242,139 @@ export default function ProductCreateModal({
     })();
   }, [open]);
 
-  // 선택된 상위 카테고리에 따른 하위 카테고리
   const subOptions = useMemo(() => {
     const root = catTree.find((c) => String(c.id) === category1);
     return root?.subCategories ?? [];
   }, [catTree, category1]);
 
-  // 태그명 -> id 
   const tagDict = useMemo(() => {
     const dict: TagDict = {};
-    tagsRemote.forEach((t) => {
-      dict[t.tagName] = t.id;
-    });
+    tagsRemote.forEach((t) => (dict[t.tagName] = t.id));
     return dict;
   }, [tagsRemote]);
 
-  // files가 바뀔 때마다 미리보기 URL
   useEffect(() => {
     const urls = files.map((f) => (f.type?.startsWith('image/') ? URL.createObjectURL(f) : ''));
     setPreviews(urls);
-    return () => {
-      urls.forEach((u) => {
-        if (u) URL.revokeObjectURL(u); // 메모리 해제
-      });
-    };
+    return () => urls.forEach((u) => u && URL.revokeObjectURL(u));
   }, [files]);
 
   // body scroll lock
   useEffect(() => {
+    if (!open) return;
     const prev = document.body.style.overflow;
     document.body.style.overflow = 'hidden';
     return () => {
       document.body.style.overflow = prev;
     };
-  }, []);
+  }, [open]);
+
+//payload -> 내부 state 주입 유틸
+function hydrateFromPayload(payload: ProductCreatePayload) {
+  setBrand(payload.brand ?? initialBrand);
+  setTitle(payload.title ?? '');
+  setModelName(payload.modelName ?? '');
+  setCategory1(payload.category1 ?? '');
+  setCategory2(payload.category2 ?? '');
+
+  setSize(payload.size ?? '');
+  setMaterial(payload.material ?? '');
+  setOrigin(payload.origin ?? '');
+
+  setPrice(payload.price ?? 0);
+  setDiscountRate(payload.discountRate ?? 0);
+  setStock(payload.stock ?? 0);
+  setMinQty(payload.minQty ?? 1);
+  setMaxQty(payload.maxQty ?? 0);
+
+  // 배송
+  setBundleShipping(!!payload.bundleShipping);
+  setShippingType(payload.shipping?.type ?? 'FREE');
+  setShippingFee(payload.shipping?.type === 'FREE' ? 0 : (payload.shipping?.fee ?? 0));
+  setFreeThreshold(
+    payload.shipping?.type === 'CONDITIONAL' ? (payload.shipping?.freeThreshold ?? 0) : 0
+  );
+  setJejuExtraFee(payload.shipping?.jejuExtraFee ?? 0);
+
+  // 판매설정
+  const planned = !!payload.plannedSale;
+  setIsPlanned(planned);
+  setSaleStart(planned ? (payload.plannedSale?.startAt ?? '') : '');
+  setSaleEnd(planned ? (payload.plannedSale?.endAt ?? '') : '');
+
+  // 태그/옵션/추가상품
+  setTags(payload.tags ?? []);
+  const usingOptions = (payload.options?.length ?? 0) > 0 || (payload.addons?.length ?? 0) > 0;
+  setUseOptions(usingOptions);
+  setOptions(payload.options ?? []);
+  setAddons(payload.addons ?? []);
+
+  // 인증/사업자/본문
+  setLawCertRequired(!!payload.lawCert?.required);
+  setLawCertDetail(payload.lawCert?.detail ?? '');
+  setBizInfo({
+    companyName: payload.bizInfo?.companyName ?? '',
+    bizNumber: payload.bizInfo?.bizNumber ?? '',
+    ceoName: payload.bizInfo?.ceoName ?? '',
+  });
+  setEditorValue(payload.description ?? '');
+}
+
+  // 생성 모달 열리면 입력값 비우기 
+  useEffect(() => {
+  if (!open) return;
+
+  if (mode === 'edit' && initialPayload) {
+    // 수정 모드 → initialPayload로 주입
+    hydrateFromPayload(initialPayload);
+  } else if (mode === 'create') {
+    // 생성 모드 → 깔끔히 초기화 + 브랜드만 세팅
+    resetAll();
+    setBrand(initialBrand);
+  }
+}, [open, mode, initialPayload, initialBrand]);
+
+  // 전체 초기화
+  const resetAll = () => {
+    setTitle('');
+    setModelName('');
+    setCategory1('');
+    setCategory2('');
+    setSize('');
+    setMaterial('');
+    setOrigin('');
+    setPrice(0);
+    setDiscountRate(0);
+    setStock(0);
+    setMinQty(1);
+    setMaxQty(0);
+    setBundleShipping(true);
+    setShippingType('FREE');
+    setShippingFee(0);
+    setFreeThreshold(0);
+    setJejuExtraFee(0);
+    setIsPlanned(false);
+    setSaleStart('');
+    setSaleEnd('');
+    setTags([]);
+    setUseOptions(false);
+    setOptions([]);
+    setAddons([]);
+    setLawCertRequired(false);
+    setLawCertDetail('');
+    setEditorValue('');
+    setFiles([]);
+    setFileTypes([]);
+    setUploadedImages([]);
+  };
 
   const handleSelectFiles = (incoming: File[]) => {
     if (incoming.length === 0) return;
-
-    // 중복 방지(이름+크기+수정시각 기준)
     const key = (f: File) => `${f.name}-${f.size}-${f.lastModified}`;
     const dedup = incoming.filter((nf) => !files.some((ef) => key(ef) === key(nf)));
-
     if (dedup.length === 0) return;
-
-    // files 누적
     const nextFiles = [...files, ...dedup];
     setFiles(nextFiles);
-
-    // types 누적: 전체 목록이 비어있을 때 첫 새 파일만 MAIN, 나머지는 ADDITIONAL
     const defaults = dedup.map((_, i) => (files.length === 0 && i === 0 ? 'MAIN' : 'ADDITIONAL'));
     setFileTypes((prev) => [...prev, ...defaults]);
   };
@@ -310,55 +410,97 @@ export default function ProductCreateModal({
     }));
   };
 
-  const handleSubmit = async () => {
-    if (!title.trim()) return alert('상품명을 입력해주세요.');
-    if (price < 0) return alert('판매가는 0 이상이어야 합니다.');
-    if (shippingType === 'CONDITIONAL' && (!freeThreshold || freeThreshold <= 0))
+  // 폼 payload
+  const buildPayload = (): ProductCreatePayload => ({
+    brand,
+    title,
+    modelName,
+    category1,
+    category2,
+    size,
+    material,
+    origin,
+    price,
+    discountRate,
+    stock,
+    minQty,
+    maxQty,
+    bundleShipping,
+    shipping: {
+      type: shippingType,
+      fee: shippingType === 'FREE' ? 0 : shippingFee,
+      freeThreshold: shippingType === 'CONDITIONAL' ? freeThreshold : null,
+      jejuExtraFee,
+    },
+    plannedSale: isPlanned ? { startAt: saleStart, endAt: saleEnd } : null,
+    tags,
+    options: useOptions ? options : [],
+    addons: useOptions ? addons : [],
+    lawCert: lawCertRequired ? { required: true, detail: lawCertDetail } : { required: false },
+    description: editorValue,
+    bizInfo,         // 서버 전송 X
+    attachments: [], // 서버 전송 X
+  });
+
+  // 생성 
+  const handleCreate = async () => {
+    const payload = buildPayload();
+    if (!payload.title.trim()) return alert('상품명을 입력해주세요.');
+    if (payload.price < 0) return alert('판매가는 0 이상이어야 합니다.');
+    if (payload.shipping.type === 'CONDITIONAL' && (!payload.shipping.freeThreshold || payload.shipping.freeThreshold <= 0))
       return alert('조건부 무료배송 기준 금액을 입력해주세요.');
 
-    // 폼 payload
-    const payload: ProductCreatePayload = {
-      brand,
-      title,
-      modelName,
-      category1,
-      category2,
-      size,
-      material,
-      origin,
-      price,
-      discountRate,
-      stock,
-      minQty,
-      maxQty,
-      bundleShipping,
-      shipping: {
-        type: shippingType,
-        fee: shippingType === 'FREE' ? 0 : shippingFee,
-        freeThreshold: shippingType === 'CONDITIONAL' ? freeThreshold : null,
-        jejuExtraFee,
-      },
-      plannedSale: isPlanned ? { startAt: saleStart, endAt: saleEnd } : null,
-      tags,
-      options: useOptions ? options : [],
-      addons: useOptions ? addons : [],
-      lawCert: lawCertRequired ? { required: true, detail: lawCertDetail } : { required: false },
-      description: editorValue,
-      bizInfo,          // 서버 전송 X
-      attachments: [],  // 서버 전송 X
-    };
-
-
-    // DTO 변환 + API 호출
     const dto = toProductCreateDto(payload, { uploadedImages, tagDict });
-    const productUuid = await createProduct(dto);
-
-    // 테이블 한 줄 추가
-    onCreated?.({ productUuid, payload });
-
-    alert(`상품 등록 성공: ${productUuid}`);
+    const newUuid = await createProduct(dto);
+    onCreated?.({ productUuid: newUuid, payload });
+    alert(`상품 등록 성공: ${newUuid}`);
     onClose();
   };
+
+// 수정
+const handleUpdate = async () => {
+  if (!productUuid) return alert('상품 식별자가 없습니다.');
+  const payload = buildPayload();
+
+  if (!payload.title.trim()) return alert('상품명을 입력해주세요.');
+  if (payload.price < 0) return alert('판매가는 0 이상이어야 합니다.');
+  if (payload.shipping.type === 'CONDITIONAL' && (!payload.shipping.freeThreshold || payload.shipping.freeThreshold <= 0)) {
+    return alert('조건부 무료배송 기준 금액을 입력해주세요.');
+  }
+
+  try {
+    setSubmitting(true);
+    const dto = toProductCreateDto(payload, { uploadedImages, tagDict });
+    const updatedUuid = await updateProduct(productUuid, dto);
+    onUpdated?.({ productUuid: updatedUuid, payload });
+    alert('상품이 수정되었습니다.');
+    onClose();
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : '상품 수정 중 오류가 발생했습니다.';
+    alert(msg);
+  } finally {
+    setSubmitting(false);
+  }
+};
+
+// 삭제 
+const handleDelete = async () => {
+  if (!productUuid) return alert('상품 식별자가 없습니다.');
+  if (!confirm('정말 삭제하시겠어요?')) return;
+
+  try {
+    setSubmitting(true);
+    const deletedUuid = await deleteProduct(productUuid);
+    onDeleted?.({ productUuid: deletedUuid });
+    alert('상품이 삭제되었습니다.');
+    onClose();
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : '상품 삭제 중 오류가 발생했습니다.';
+    alert(msg);
+  } finally {
+    setSubmitting(false);
+  }
+};
 
   if (!open) return null;
 
@@ -374,7 +516,8 @@ export default function ProductCreateModal({
         {/* 헤더 */}
         <div className="sticky top-0 z-10 bg-white px-6 pt-5 pb-4">
           <div className="flex items-center justify-between">
-            <h2 className="text-lg font-bold">상품 등록</h2>
+            <h2 className="text-lg font-bold">{mode === 'edit' ? '상품 수정' : '상품 등록'}</h2>
+
             <button
               className="cursor-pointer rounded transition hover:bg-black/5 p-2"
               onClick={onClose}
@@ -996,20 +1139,45 @@ export default function ProductCreateModal({
 
         {/* 푸터 */}
         <hr />
-        <div className="sticky bottom-0 z-10 bg-white px-6 py-4 flex justify-end gap-2">
-          <button
-            onClick={onClose}
-            className="px-3 py-2 rounded-md border border-primary text-primary font-semibold text-sm cursor-pointer"
-          >
-            작성취소
-          </button>
-          <button
-            onClick={handleSubmit}
-            className="px-3 py-2 rounded-md border border-primary bg-primary text-white font-semibold text-sm cursor-pointer"
-          >
-            작성하기
-          </button>
-        </div>
+        <div className="sticky bottom-0 z-10 bg-white px-6 py-4 flex justify-between gap-2">
+          
+          {/* 전체 초기화 버튼 */}
+          <div>
+            {mode === 'edit' && (
+              <button
+                onClick={resetAll}
+                className="px-3 py-2 rounded-md border border-red-500 text-red-600 font-semibold text-sm cursor-pointer"
+              >
+                초기화
+              </button>
+            )}
+          </div>
+
+          {/* 우측: 취소/제출 */}
+          <div className="flex gap-2">
+            <button
+              onClick={onClose}
+              className="px-3 py-2 rounded-md border border-primary text-primary font-semibold text-sm cursor-pointer"
+            >
+              {mode === 'edit' ? '수정취소' : '작성취소'}
+            </button>
+            {mode === 'edit' ? (
+              <button
+                onClick={handleUpdate} disabled={submitting}
+                className="px-3 py-2 rounded-md border border-primary bg-primary text-white font-semibold text-sm cursor-pointer"
+              >
+                수정하기
+              </button>
+            ) : (
+              <button
+                onClick={handleCreate} disabled={submitting}
+                className="px-3 py-2 rounded-md border border-primary bg-primary text-white font-semibold text-sm cursor-pointer"
+              >
+                작성하기
+              </button>
+            )}
+            </div>
+          </div>
       </div>
     </div>
   );

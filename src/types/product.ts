@@ -113,4 +113,36 @@ export type ProductCreatePayload = {
   attachments?: File[]; // 서버 전송 X
 };
 
+// 태그
 export type TagDict = Record<string, number>;
+
+// 상품 목록
+export type ProductListParams = {
+  categoryId?: number;   
+  tagIds?: number[];
+  minPrice?: number;      
+  maxPrice?: number;              
+  deliveryType?: 'FREE' | 'PAID' | 'CONDITIONAL'; 
+  sort?: 'newest' | 'priceAsc' | 'priceDesc' | 'popular';
+  page?: number;  
+  size?: number; 
+};
+
+export type ProductListItem = {
+  productUuid: string;
+  url: string; 
+  brandName: string;
+  name: string;
+  price: number;
+  discountRate: number;
+  discountPrice: number;
+  rating: number;
+};
+
+export type ProductListData = {
+  page: number;
+  size: number;
+  totalElements: number;
+  totalPages: number;
+  products: ProductListItem[];
+};
