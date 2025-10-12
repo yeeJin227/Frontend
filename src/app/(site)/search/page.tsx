@@ -5,7 +5,6 @@ import { useSearchParams } from 'next/navigation';
 import ResultHeader from '@/components/search/ResultHeader';
 import ProductCard from '@/components/ProductCard';
 
-import Error from '@/assets/icon/error.svg';
 import { fuzzyMatch } from '@/utils/search';
 import { allProducts } from '@/utils/product';
 
@@ -87,10 +86,10 @@ function SearchContent() {
         />
 
         {filtered.length === 0 ? (
-          <div className="flex flex-col justify-center items-center text-center p-50 mt-4 bg-tertiary-20">
-            <Error width={90} height={90} />
-            <span className="mt-4 mb-1">검색결과가 없습니다.</span>
-            <span>검색어를 다시 입력해주세요.</span>
+          <div className='flex flex-col justify-center items-center text-center p-50 mt-4 bg-tertiary-20'>
+            <div className="text-4xl mb-3">🧐</div>
+            <span className='text-lg font-semibold mb-2'>검색결과가 없습니다.</span>
+            <p className="text-sm text-slate-500 mb-6">검색어를 다시 입력해주세요.</p>
           </div>
         ) : (
           <section className="mt-6 grid grid-cols-2 gap-x-6 gap-y-10 md:grid-cols-3 xl:grid-cols-4">

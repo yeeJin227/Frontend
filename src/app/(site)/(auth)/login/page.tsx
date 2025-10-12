@@ -2,9 +2,9 @@
 import Button from '@/components/Button';
 import Image from 'next/image';
 import Link from 'next/link';
-import { useState } from 'react';
+import { Suspense, useEffect, useState } from 'react';
 import { useToast } from '@/components/ToastProvider';
-import { useRouter } from 'next/navigation';
+import { useRouter, usePathname, useSearchParams } from 'next/navigation';
 import { login } from '@/services/auth';
 import googleIcon from '@/assets/icon/google.png';
 import NaverIcon from '@/assets/icon/naver.svg';
@@ -35,7 +35,7 @@ const SOCIAL_LABELS: Record<SocialProvider, string> = {
 
 const SOCIAL_PROVIDER_ORDER: SocialProvider[] = ['google', 'naver', 'kakao'];
 
-export default function LoginCard() {
+function LoginCardContent() {
   const [selected, setSelected] = useState<'normal' | 'artist'>('normal');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -45,6 +45,32 @@ export default function LoginCard() {
   const router = useRouter();
 
   const setAuth = useAuthStore((state) => state.setAuth);
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
+
+  useEffect(() => {
+    const flag = searchParams.get('socialSignup');
+    if (flag === '1') {
+      const params = new URLSearchParams(searchParams.toString());
+      setAuth({
+        needsAdditionalInfo: true,
+        userProfile: {
+          email: params.get('email') ?? undefined,
+          nickname: params.get('nickname') ?? undefined,
+          phone: params.get('phone') ?? undefined,
+        },
+      });
+
+      params.delete('socialSignup');
+      params.delete('email');
+      params.delete('nickname');
+      params.delete('phone');
+
+      const query = params.toString();
+      const next = query ? `${pathname}?${query}` : pathname;
+      router.replace(next, { scroll: false });
+    }
+  }, [pathname, router, searchParams, setAuth]);
 
   const baseTab =
     'lg:w-[180px] md:w-[180px] rounded-t-xl px-5 py-3 text-[16px] font-semibold transition-colors duration-150 focus-visible:outline focus-visible:outline-offset-2 focus-visible:outline-[var(--color-primary)]';
@@ -94,13 +120,24 @@ export default function LoginCard() {
                   if (data) {
                     setAuth({
                       role: data.selectedRole,
-                      availableRoles: data.availableRoles,
+                      availableRoles: data.availableRoles ?? [],
                       accessToken: data.accessToken,
                       refreshToken: data.refreshToken,
+                      needsAdditionalInfo: Boolean(data.needsAdditionalInfo),
+                      userProfile: {
+                        email: data.email,
+                        nickname: data.nickname ?? undefined,
+                        phone: data.phone ?? undefined,
+                      },
                     });
+                    if (data.needsAdditionalInfo) {
+                      toast.info('추가 정보 입력이 필요합니다.', { duration: 2000 });
+                      return;
+                    }
                   }
                   toast.success('로그인되었습니다!', { duration: 2000 });
-                  router.push('/');
+                  const nextRoute = data?.selectedRole === 'ADMIN' ? '/admin/main' : '/';
+                  router.push(nextRoute);
                 } catch (err) {
                   const msg =
                     err instanceof Error ? err.message : '로그인 실패';
@@ -196,5 +233,13 @@ export default function LoginCard() {
         </div>
       </div>
     </div>
+  );
+}
+
+export default function LoginCard() {
+  return (
+    <Suspense fallback={null}>
+      <LoginCardContent />
+    </Suspense>
   );
 }

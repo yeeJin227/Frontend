@@ -34,10 +34,10 @@ export default function ProductFilter({
     },[open]);
 
   return (
-    <div>
-        <div className="border-b border-gray-200 my-3"></div>
+    <>
+        <div className="bg-gray-200 h-[1px] w-full max-w-5xl my-8"></div>
 
-        <div className="flex justify-end">
+        <div className="mb-6 ml-6 w-full max-w-5xl">
             <div ref={rootRef} className="relative">
                 <button 
                 type="button"
@@ -54,7 +54,7 @@ export default function ProductFilter({
 
                 {/* 버튼 클릭 시 드롭다운 */}
                 {open && (
-                    <div className="absolute left-1/2 translate-x-[-50%] w-[120px] bg-white text-center border border-primary rounded-[10px]">
+                    <div className="absolute w-[120px] bg-white text-center border border-primary rounded-[10px]">
                         <ul className="py-2">
                             {
                                 OPTIONS.map((item) => (
@@ -75,6 +75,6 @@ export default function ProductFilter({
                 )}
             </div>
         </div>
-    </div>
+    </>
   )
 }
