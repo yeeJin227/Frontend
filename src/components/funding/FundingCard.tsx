@@ -1,7 +1,12 @@
 import Image from 'next/image';
 import testImg from '@/img/exampleImg.png';
+import { Funding } from '@/types/funding';
 
-function FundingCard() {
+interface Props {
+  data: Funding;
+}
+
+function FundingCard(data: Props) {
   return (
     <div>
       <Image src={testImg} alt={'cardImage'} width={300} height={300}></Image>
