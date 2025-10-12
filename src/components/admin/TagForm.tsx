@@ -1,44 +1,63 @@
 'use client';
 
 import { useRef, useState } from 'react';
-
+import { useRouter } from 'next/navigation';
 import Button from '@/components/Button';
 import { createTagAction } from '@/app/admin/(dashboard)/products/tags/action';
-import { useRouter } from 'next/navigation';
+import { useToast } from '@/components/ToastProvider';
+
+// 에러 메시지 안전 추출
+function hasMessage(x: unknown): x is { message: string } {
+  return (
+    typeof x === 'object' &&
+    x !== null &&
+    'message' in x &&
+    typeof (x as { message?: unknown }).message === 'string'
+  );
+}
+function getErrorMessage(err: unknown) {
+  if (err instanceof Error) return err.message;
+  if (hasMessage(err)) return err.message;
+  return '';
+}
 
 export default function TagForm() {
   const router = useRouter();
+  const toast = useToast();
+
   const [tagName, setTagName] = useState('');
   const [loading, setLoading] = useState(false);
   const inputRef = useRef<HTMLInputElement | null>(null);
-  const [msg, setMsg] = useState<string | null>(null);
-  const [err, _setErr] = useState<string | null>(null);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     const name = tagName.trim();
     if (!name) {
-      setMsg('태그명을 입력해주세요.');
+      toast.info('태그명을 입력해주세요.');
       inputRef.current?.focus();
       return;
     }
 
     setLoading(true);
-    setMsg(null);
     try {
       const fd = new FormData();
       fd.append('tagName', name);
 
       const res = await createTagAction(fd);
-      if (res.success) {
-        setMsg('태그가 등록되었습니다');
+
+      if (res.success && res.data) {
+        toast.success(`태그 등록 완료: ${res.data.tagName}`, { duration: 1800 });
         setTagName('');
         inputRef.current?.focus();
 
-        router.refresh(); // 서버 컴포넌트(태그 목록) 즉시 갱신
+        window.dispatchEvent(new CustomEvent('tag:created', { detail: { tag: res.data } }));
+
+        router.refresh();
       } else {
-        setMsg(`❌ ${res.message}`);
+        toast.error(res.message || '태그 등록 실패');
       }
+    } catch (err: unknown) {
+      toast.error(getErrorMessage(err) || '태그 등록 실패');
     } finally {
       setLoading(false);
     }
@@ -46,7 +65,9 @@ export default function TagForm() {
 
   return (
     <form onSubmit={handleSubmit} className="space-y-2">
-      <label className="mb-1 block text-sm" htmlFor="tagName">태그 이름</label>
+      <label className="mb-1 block text-sm" htmlFor="tagName">
+        태그 이름
+      </label>
       <div className="flex items-center gap-3">
         <input
           id="tagName"
@@ -58,10 +79,8 @@ export default function TagForm() {
           disabled={loading}
         />
         <Button type="submit" variant="primary" disabled={loading}>
-                  {loading ? '등록 중…' : '등록'}
+          {loading ? '등록 중…' : '등록'}
         </Button>
-        {msg && <span className="text-sm text-green-700">{msg}</span>}
-        {err && <span className="text-sm text-red-600">{err}</span>}
       </div>
     </form>
   );
