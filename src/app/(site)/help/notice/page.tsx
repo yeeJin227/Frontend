@@ -1,8 +1,11 @@
 "use client";
+import { useMemo } from "react";
+import { useRouter } from "next/navigation";
 import type { Column } from "@/components/table/DataTable";
 import { DataTable } from "@/components/table/DataTable";
 import Button from "@/components/Button";
 import Link from "next/link";
+import { useAuthStore } from "@/stores/authStore";
 
 type Notice = {
   no: string;
@@ -31,22 +34,31 @@ const noticeCols: Column<Notice>[] = [
 ];
 
 export default function NoticeListPage() {
-  const rows: Notice[] = [
-    { no: "00002", title: "2025 추석연휴 배송공지", important: true, author: "관리자", date: "25.09.16", views: 1 },
-    { no: "00001", title: "작가회원 입점 신청 안내", important: true, author: "관리자", date: "25.09.16", views: 1 },
-    { no: "00003", title: "배송 누락 시 문의글 작성 가이드 안내", important: true, author: "관리자", date: "25.09.16", views: 1 },
-    { no: "76009", title: "2025.09월 신규 입점작가 안내", author: "관리자", date: "25.09.16", views: 1 },
-  ];
+  const router = useRouter();
+  const role = useAuthStore((store) => store.role);
+  const isHydrated = useAuthStore((store) => store.isHydrated);
+  const rows: Notice[] = useMemo(
+    () => [
+      { no: "00002", title: "2025 추석연휴 배송공지", important: true, author: "관리자", date: "25.09.16", views: 1 },
+      { no: "00001", title: "작가회원 입점 신청 안내", important: true, author: "관리자", date: "25.09.16", views: 1 },
+      { no: "00003", title: "배송 누락 시 문의글 작성 가이드 안내", important: true, author: "관리자", date: "25.09.16", views: 1 },
+      { no: "76009", title: "2025.09월 신규 입점작가 안내", author: "관리자", date: "25.09.16", views: 1 },
+    ],
+    [],
+  );
+  const canManage = role === "ADMIN";
 
   return (
     <>
       <div className="mt-[94px] mb-4 flex items-center justify-between">
         <h3 className="text-2xl font-bold">공지사항</h3>
-        <Link href="/help/notice/new">
-          <Button variant="primary" size="sm">
-            공지사항 작성
-          </Button>
-        </Link>
+        {isHydrated && canManage && (
+          <Link href="/help/notice/new">
+            <Button variant="primary" size="sm">
+              공지사항 작성
+            </Button>
+          </Link>
+        )}
       </div>
 
       <DataTable
@@ -54,7 +66,7 @@ export default function NoticeListPage() {
         rows={rows}
         rowKey={(r) => r.no}
         rowClassName={(r) => (r.important ? "bg-[var(--color-danger-10)] hover:bg-[var(--color-danger-20)]" : "")}
-        onRowClick={(r) => location.assign(`/help/notice/${r.no}`)}
+        onRowClick={(r) => router.push(`/help/notice/${r.no}`)}
       />
 
       <nav className="mt-6 flex items-center justify-center gap-4 text-sm text-[var(--color-gray-700)]">
