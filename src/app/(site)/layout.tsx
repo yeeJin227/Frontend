@@ -3,6 +3,7 @@ import localFont from 'next/font/local';
 import Header from '@/components/Header';
 import Footer from '@/components/Footer';
 import ScrollTopBtn from '@/components/ScrollTopBtn';
+import CategoryNavApp from '@/components/CategoryNav/Nav.app';
 
 const suit = localFont({
   src: [
@@ -54,8 +55,8 @@ export default function SiteLayout({
 }) {
   return (
     <>
-      <Header />
-      <main className="min-h-screen">{children}</main>
+      <Header NavSlot={<CategoryNavApp />} />
+      {children}
       <ScrollTopBtn />
       <Footer />
     </>

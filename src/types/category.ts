@@ -8,6 +8,7 @@ export type Category = {
   categoryName: string;
   parentId?: number | null;
   subCategories: Category[];
+  slug: string; // 라우팅 고정키
 };
 
 export type ApiResponse<T> = {

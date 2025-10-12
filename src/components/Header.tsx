@@ -10,7 +10,7 @@ import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import Image from 'next/image';
 import React, { useEffect, useState } from 'react';
-import CategoryNav from './CategoryNav';
+
 import Notification from './Notification';
 import SearchBox from './search/SearchBox';
 import { useAuthStore } from '@/stores/authStore';
@@ -32,25 +32,21 @@ function MenuIcon({ href }: { href: string }) {
 const isNotificationItem = (item: { href: string; label: string }) =>
   item.href === '/news';
 
-export default function Header() {
+export default function Header({ NavSlot }: { NavSlot?: React.ReactNode }) {
   const router = useRouter();
   const [keyword, setKeyword] = useState('');
-  const role = useAuthStore((state) => state.role);
-  const hydrate = useAuthStore((state) => state.hydrate);
-  const isHydrated = useAuthStore((state) => state.isHydrated);
+  const role = useAuthStore((s) => s.role);
+  const hydrate = useAuthStore((s) => s.hydrate);
+  const isHydrated = useAuthStore((s) => s.isHydrated);
 
   const pathname = usePathname();
   const [notifOpen, setNotifOpen] = useState(false);
-
   const { logout } = useLogout();
 
   useEffect(() => {
-    if (!isHydrated) {
-      void hydrate();
-    }
+    if (!isHydrated) void hydrate();
   }, [hydrate, isHydrated]);
-  
-  // 라우트 바뀔 때마다 검색창 초기화
+
   useEffect(() => {
     setKeyword('');
   }, [pathname]);
@@ -62,7 +58,6 @@ export default function Header() {
     router.push(`/search?q=${encodeURIComponent(q)}`);
   };
 
-  // 알림창 열리면 외부 스크롤 막기
   useEffect(() => {
     if (notifOpen) document.body.classList.add('overflow-hidden');
     else document.body.classList.remove('overflow-hidden');
@@ -72,7 +67,6 @@ export default function Header() {
   const authItems = navItems.filter(
     (item) => item.href === '/login' || item.href === '/register',
   );
-
   const otherItems = navItems.filter(
     (item) => item.href !== '/login' && item.href !== '/register',
   );
@@ -83,13 +77,7 @@ export default function Header() {
         {/* 로고 */}
         <h1 className="shrink-0">
           <Link href="/">
-            <Image
-              src="/logo.svg"
-              alt="사이트 로고"
-              width={200}
-              height={100}
-              priority
-            />
+            <Image src="/logo.svg" alt="사이트 로고" width={200} height={100} priority />
           </Link>
         </h1>
 
@@ -103,13 +91,8 @@ export default function Header() {
           <ul className="flex flex-wrap gap-5">
             <li className="flex items-center gap-1.5">
               <Login />
-              {/* 로그인/회원가입 */}
               {role ? (
-                <button
-                  type="button"
-                  onClick={logout}
-                  className="hover:text-primary"
-                >
+                <button type="button" onClick={logout} className="hover:text-primary">
                   로그아웃
                 </button>
               ) : (
@@ -117,26 +100,18 @@ export default function Header() {
                   <React.Fragment key={href}>
                     <Link
                       href={href}
-                      className={
-                        pathname === href
-                          ? 'text-primary'
-                          : 'hover:text-primary'
-                      }
+                      className={pathname === href ? 'text-primary' : 'hover:text-primary'}
                     >
                       {label}
                     </Link>
-                    {index < authItems.length - 1 && (
-                      <span className="text-gray-600">/</span>
-                    )}
+                    {index < authItems.length - 1 && <span className="text-gray-600">/</span>}
                   </React.Fragment>
                 ))
               )}
             </li>
-            {/* 나머지 */}
+
             {otherItems.map((item) => {
               const { href, label } = item;
-
-              // 알림아이콘은 버튼으로
               if (isNotificationItem(item)) {
                 return (
                   <li key={href}>
@@ -151,8 +126,6 @@ export default function Header() {
                   </li>
                 );
               }
-
-              // 알림아이콘 제외 나머지는 라우팅
               return (
                 <li key={href}>
                   <Link
@@ -171,7 +144,7 @@ export default function Header() {
         </nav>
       </header>
 
-      <CategoryNav />
+      {NavSlot}
 
       {/* 알림 창 */}
       <Notification open={notifOpen} onClose={() => setNotifOpen(false)} />

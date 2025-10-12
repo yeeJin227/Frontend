@@ -185,7 +185,7 @@ export default async function ProductSectionServer({
         {/* 아무것도 없을 때 */}
         {empty ? (
           <div className="flex items-center justify-center rounded-xl bg-tertiary-20 py-14 text-center text-gray-500">
-            아직 올라온 상품이 없습니다.
+            아직 등록된 상품이 없습니다.
           </div>
         ) : (
           <ProductSlider items={data.products} />
