@@ -39,7 +39,7 @@ export default function NewsSection({ fundingId, news }: NewsSectionProps) {
   return (
     <div className="bg-white rounded-lg shadow-sm flex flex-col">
       <div className="ml-auto">
-        <NewsInputModal />
+        <NewsInputModal fundingId={fundingId} />
       </div>
 
       <div className="space-y-6 p-6">
