@@ -5,7 +5,6 @@ const OrderPage = () => {
   return (
     <div className="min-h-screen bg-white">
       <main className="max-w-7xl mx-auto px-4 py-8">
-        {/* 브레드크럼 - 서버 컴포넌트 */}
         <div className="text-center text-2xl mb-8">
           <span className="font-bold">01 장바구니</span>
           <span className="text-gray-300 mx-2">&gt;</span>
@@ -14,7 +13,7 @@ const OrderPage = () => {
           <span className="text-gray-300">03 주문완료</span>
         </div>
 
-        {/* 클라이언트 컴포넌트 */}
+        {/* 클라이언트 컴포넌트 - TanStack Query로 데이터 페칭 */}
         <OrderContent />
       </main>
     </div>

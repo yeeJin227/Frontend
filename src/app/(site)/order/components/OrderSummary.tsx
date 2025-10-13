@@ -1,13 +1,15 @@
 'use client';
 
 import React from 'react';
-import { useOrderStore } from '@/app/(site)/order/stores/orderStore';
+import { CartItem } from '../types/cart.types';
 
-const OrderSummary = () => {
-  const { cartItems } = useOrderStore();
+interface OrderSummaryProps {
+  allItems: CartItem[];
+}
 
+const OrderSummary = ({ allItems }: OrderSummaryProps) => {
   const calculateTotal = () => {
-    const checkedItems = cartItems.filter((item) => item.isChecked);
+    const checkedItems = allItems.filter((item) => item.isChecked);
     const totalPrice = checkedItems.reduce(
       (sum, item) => sum + item.price * item.quantity,
       0,
@@ -23,6 +25,24 @@ const OrderSummary = () => {
 
   const { totalPrice, shippingFee, finalPrice, checkedCount } =
     calculateTotal();
+
+  const handleSelectedOrder = () => {
+    if (checkedCount === 0) {
+      alert('선택된 상품이 없습니다.');
+      return;
+    }
+    // TODO: 선택 주문 처리 로직
+    console.log('선택 주문:', checkedCount);
+  };
+
+  const handleAllOrder = () => {
+    if (allItems.length === 0) {
+      alert('장바구니가 비어있습니다.');
+      return;
+    }
+    // TODO: 전체 주문 처리 로직
+    console.log('전체 주문:', allItems.length);
+  };
 
   return (
     <>
@@ -46,10 +66,16 @@ const OrderSummary = () => {
 
       {/* 주문 버튼 */}
       <section className="flex justify-center gap-4">
-        <button className="px-8 py-3 border border-primary text-primary rounded bg-white font-semibold">
+        <button
+          onClick={handleSelectedOrder}
+          className="px-8 py-3 border border-primary text-primary rounded bg-white font-semibold hover:bg-gray-50"
+        >
           선택주문({checkedCount})
         </button>
-        <button className="px-8 py-3 bg-primary text-white rounded font-semibold">
+        <button
+          onClick={handleAllOrder}
+          className="px-8 py-3 bg-primary text-white rounded font-semibold hover:bg-primary/90"
+        >
           전체주문
         </button>
       </section>

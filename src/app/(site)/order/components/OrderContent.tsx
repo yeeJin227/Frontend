@@ -1,77 +1,51 @@
 'use client';
 
 import React from 'react';
-import { useOrderStore } from '@/app/(site)/order/stores/orderStore';
+import { useCart } from '../hooks/useCart';
 import CartSection from './CartSection';
 import OrderSummary from './OrderSummary';
 
 const OrderContent = () => {
-  const { cartItems } = useOrderStore();
+  const { data, isLoading, isError, error } = useCart();
 
-  // 초기 데이터 설정 (개발용 목업 데이터)
-  React.useEffect(() => {
-    if (cartItems.length === 0) {
-      useOrderStore.setState({
-        cartItems: [
-          {
-            id: 1,
-            brand: '시루에 다람쥐',
-            name: '아이코닉 2026 하루끝 하루시작 다이어리 (위클리 플래너)',
-            option: '세부상품명1',
-            price: 8000,
-            quantity: 1,
-            image: '/cart-item1.jpg',
-            isChecked: true,
-            isRegular: true,
-          },
-          {
-            id: 2,
-            brand: '시루에 다람쥐',
-            name: '아이코닉 2026 하루끝 하루시작 다이어리 (위클리 플래너)',
-            option: '세부상품명1',
-            price: 8000,
-            quantity: 0,
-            image: '/cart-item2.jpg',
-            isChecked: true,
-            isRegular: true,
-          },
-          {
-            id: 3,
-            brand: '시루에 다람쥐',
-            name: '아이코닉 2026 하루끝 하루시작 다이어리 (위클리 플래너)',
-            option: '세부상품명1',
-            price: 8000,
-            quantity: 1,
-            image: '/cart-item3.jpg',
-            isChecked: true,
-            isRegular: false,
-          },
-          {
-            id: 4,
-            brand: '시루에 다람쥐',
-            name: '아이코닉 2026 하루끝 하루시작 다이어리 (위클리 플래너)',
-            option: '세부상품명1',
-            price: 8000,
-            quantity: 1,
-            image: '/cart-item4.jpg',
-            isChecked: false,
-            isRegular: false,
-          },
-        ],
-      });
-    }
-  }, [cartItems.length]);
+  // 로딩 상태
+  if (isLoading) {
+    return (
+      <div className="flex justify-center items-center py-20">
+        <div className="text-xl text-gray-500">장바구니를 불러오는 중...</div>
+      </div>
+    );
+  }
 
-  const regularItems = cartItems.filter((item) => item.isRegular);
-  const fundingItems = cartItems.filter((item) => !item.isRegular);
+  // 에러 상태
+  if (isError) {
+    return (
+      <div className="flex justify-center items-center py-20">
+        <div className="text-xl text-red-500">
+          장바구니를 불러오는데 실패했습니다.
+          <br />
+          {error instanceof Error
+            ? error.message
+            : '알 수 없는 오류가 발생했습니다.'}
+        </div>
+      </div>
+    );
+  }
+
+  // 데이터 없음
+  if (!data) {
+    return (
+      <div className="flex justify-center items-center py-20">
+        <div className="text-xl text-gray-500">장바구니가 비어있습니다.</div>
+      </div>
+    );
+  }
+
+  const { normalItems, fundingItems } = data;
 
   return (
     <>
-      <CartSection
-        title="일반 장바구니"
-        items={regularItems}
-        isRegular={true}
-      />
+      <CartSection title="일반 장바구니" items={normalItems} isRegular={true} />
 
       <CartSection
         title="펀딩 장바구니"
@@ -79,7 +53,7 @@ const OrderContent = () => {
         isRegular={false}
       />
 
-      <OrderSummary />
+      <OrderSummary allItems={data.allItems} />
     </>
   );
 };

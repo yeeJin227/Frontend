@@ -1,34 +1,32 @@
 'use client';
 
 import React from 'react';
-import { useOrderStore } from '@/app/(site)/order/stores/orderStore';
+import { useToggleCartItem } from '../hooks/useCart';
+import { CartItem as CartItemType } from '../types/cart.types';
 import CartItem from './CartItem';
 
 interface CartSectionProps {
   title: string;
-  items: Array<{
-    id: number;
-    brand: string;
-    name: string;
-    option: string;
-    price: number;
-    quantity: number;
-    image: string;
-    isChecked: boolean;
-    isRegular: boolean;
-  }>;
+  items: CartItemType[];
   isRegular: boolean;
 }
 
 const CartSection = ({ title, items, isRegular }: CartSectionProps) => {
-  const { updateCartItem } = useOrderStore();
+  const toggleMutation = useToggleCartItem();
 
   const toggleAllCheck = () => {
     const allChecked = items.every((item) => item.isChecked);
+
+    // 모든 아이템의 선택 상태를 토글
     items.forEach((item) => {
-      updateCartItem(item.id, { isChecked: !allChecked });
+      toggleMutation.mutate(item.id);
     });
   };
+
+  // 섹션이 비어있으면 렌더링하지 않음
+  if (items.length === 0) {
+    return null;
+  }
 
   return (
     <section className="mb-12">
