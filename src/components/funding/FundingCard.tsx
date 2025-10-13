@@ -1,18 +1,44 @@
 import Image from 'next/image';
-import testImg from '@/img/exampleImg.png';
+import { FundingItem } from '@/types/funding';
+import Link from 'next/link';
 
-function FundingCard() {
+interface Props {
+  data: FundingItem;
+}
+
+function FundingCard({ data }: Props) {
   return (
-    <div>
-      <Image src={testImg} alt={'cardImage'} width={300} height={300}></Image>
-      <p className="text-gray-200 font-semibold mt-3">작가명</p>
-      <p className="font-semibold">펀딩이름</p>
-      <div className="flex text-primary">
-        <p className="mt-[2px] font-semibold">달성률</p>
-        <p className="ml-[7px] font-extrabold text-xl">98%</p>
-        <p className="ml-auto font-bold">D-19</p>
+    <Link href={`/funding/${data.id}`} className="block group">
+      <div>
+        <div className="relative w-[237px] h-[206px] overflow-hidden rounded-lg bg-gray-100">
+          <Image
+            src={data.imageUrl}
+            alt={data.title}
+            fill
+            className="object-cover"
+            sizes="237px"
+          />
+        </div>
+
+        <p className="text-gray-400 text-sm font-semibold mt-3">
+          {data.authorName}
+        </p>
+        <p className="font-semibold mt-1 line-clamp-2 group-hover:text-primary transition-colors">
+          {data.title}
+        </p>
+        <div className="flex text-primary mt-2">
+          <p className="text-sm font-semibold">달성률</p>
+          <p className="ml-2 font-extrabold text-xl">{data.progress}%</p>
+          <p className="ml-auto font-bold text-sm">
+            {data.remainingDays > 0
+              ? `D-${data.remainingDays}`
+              : data.remainingDays === 0
+                ? 'D-Day'
+                : '펀딩 종료'}
+          </p>
+        </div>
       </div>
-    </div>
+    </Link>
   );
 }
 export default FundingCard;
