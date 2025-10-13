@@ -2,16 +2,12 @@
 
 import { useCallback, useEffect, useMemo, useState, type Key, type ReactNode } from 'react';
 import Link from 'next/link';
-import AdminDataTable, {
-  AdminTableColumn,
-  SortDirection,
-} from '@/components/admin/AdminDataTable';
+import AdminDataTable, { AdminTableColumn, SortDirection } from '@/components/admin/AdminDataTable';
 import Button from '@/components/Button';
 import SearchIcon from '@/assets/icon/search.svg';
 import Modal from '@/components/Modal';
 import DefaultProfile from '@/assets/icon/default_profile.svg';
 import { useToast } from '@/components/ToastProvider';
-import { approveFundingApplication, rejectFundingApplication } from '@/services/adminFundingApproval';
 import {
   fetchArtistApplications,
   normalizeArtistApplication,
@@ -19,6 +15,7 @@ import {
 } from '@/services/adminArtistApplications';
 import { useAuthGuard } from '@/hooks/useAuthGuard';
 import { useAuthStore } from '@/stores/authStore';
+import { approveArtistApplication, rejectArtistApplication } from '@/services/adminArtistApproval';
 
 type TableRow = {
   id: string;
@@ -49,9 +46,8 @@ export default function ApprovalsPage() {
   const toast = useToast();
   const accessToken = useAuthStore((state) => state.accessToken);
 
+  // 최초 로드 : 쿠키 세션
   useEffect(() => {
-    if (!accessToken) return;
-
     let active = true;
 
     const load = async () => {
@@ -59,7 +55,7 @@ export default function ApprovalsPage() {
         setLoading(true);
         setError(null);
         const summaries = await fetchArtistApplications(
-          { status: 'PENDING', page: 0, size: 50 },
+          { status: 'PENDING', page: 0, size: 50, sort: 'submittedAt', order: 'DESC' },
           { accessToken },
         );
         if (!active) return;
@@ -70,16 +66,43 @@ export default function ApprovalsPage() {
         setError(message);
         setApplications([]);
       } finally {
-        if (active) {
-          setLoading(false);
-        }
+        if (active) setLoading(false);
       }
     };
 
     void load();
-
     return () => {
       active = false;
+    };
+  }, [accessToken]);
+
+  // 최신 pending 가져와 새로운 ID만 상단에 추가
+  useEffect(() => {
+    let destroyed = false;
+
+    const poll = async () => {
+      try {
+        const latest = await fetchArtistApplications(
+          { status: 'PENDING', page: 0, size: 50, sort: 'submittedAt', order: 'DESC' },
+          { accessToken },
+        );
+        const normalized = latest.map(normalizeArtistApplication);
+        if (destroyed) return;
+
+        setApplications((prev) => {
+          const prevIds = new Set(prev.map((a) => a.applicationId));
+          const news = normalized.filter((a) => !prevIds.has(a.applicationId));
+          return news.length ? [...news, ...prev] : prev;
+        });
+      } catch {
+      }
+    };
+
+    void poll();
+    const timer = setInterval(poll, 10_000);
+    return () => {
+      destroyed = true;
+      clearInterval(timer);
     };
   }, [accessToken]);
 
@@ -87,10 +110,9 @@ export default function ApprovalsPage() {
     const keyword = searchTerm.trim().toLowerCase();
     if (!keyword) return applications;
     return applications.filter((application) => {
-      return (
-        application.applicantId.toLowerCase().includes(keyword) ||
-        application.artistName.toLowerCase().includes(keyword)
-      );
+      const idText = (application.applicantId ?? '').toLowerCase();
+      const nameText = (application.artistName ?? '').toLowerCase();
+      return idText.includes(keyword) || nameText.includes(keyword);
     });
   }, [applications, searchTerm]);
 
@@ -98,15 +120,20 @@ export default function ApprovalsPage() {
     const list = [...filteredApplications];
     if (!sortKey) return list;
 
+    const safeTime = (s?: string) => {
+      const t = s ? new Date(s).getTime() : 0;
+      return Number.isNaN(t) ? 0 : t;
+    };
+
     const compare = (a: ArtistApplication, b: ArtistApplication) => {
       switch (sortKey) {
         case 'id':
           return Number(a.applicationId) - Number(b.applicationId);
         case 'name':
-          return a.artistName.localeCompare(b.artistName);
+          return (a.artistName ?? '').localeCompare(b.artistName ?? '');
         case 'createdAt':
         default:
-          return new Date(a.appliedAt).getTime() - new Date(b.appliedAt).getTime();
+          return safeTime(a.appliedAt) - safeTime(b.appliedAt);
       }
     };
 
@@ -147,8 +174,11 @@ export default function ApprovalsPage() {
     setSortDirection(direction);
   };
 
+  // 정렬/검색이 바뀌어 리스트가 변하면 존재하지 않는 선택은 제거
   useEffect(() => {
-    setSelectedIds((prev) => prev.filter((id) => sortedApplications.some((application) => String(application.applicationId) === id)));
+    setSelectedIds((prev) =>
+      prev.filter((id) => sortedApplications.some((a) => String(a.applicationId) === id)),
+    );
   }, [sortedApplications]);
 
   const approveSelected = useCallback(async () => {
@@ -161,11 +191,9 @@ export default function ApprovalsPage() {
       return;
     }
     try {
-      await Promise.all(
-        selectedIds.map((id) => approveFundingApplication(Number(id), { accessToken })),
-      );
+      await Promise.all(selectedIds.map((id) => approveArtistApplication(Number(id), { accessToken })));
       toast.success('승인이 완료되었습니다.');
-      setApplications((prev) => prev.filter((application) => !selectedIds.includes(String(application.applicationId))));
+      setApplications((prev) => prev.filter((a) => !selectedIds.includes(String(a.applicationId))));
       setSelectedIds([]);
       setSelectedApplication((current) =>
         current && selectedIds.includes(String(current.applicationId)) ? null : current,
@@ -176,49 +204,51 @@ export default function ApprovalsPage() {
     }
   }, [accessToken, selectedIds, toast]);
 
-  const rejectSelected = useCallback(async (reason: string) => {
-    if (!selectedIds.length) {
-      toast.error('거절할 신청을 선택해 주세요.');
-      return;
-    }
-    if (!accessToken) {
-      toast.error('인증 정보가 없습니다. 다시 로그인해 주세요.');
-      return;
-    }
-    try {
-      await Promise.all(
-        selectedIds.map((id) => rejectFundingApplication(Number(id), reason, { accessToken })),
-      );
-      toast.success('거절이 완료되었습니다.');
-      setApplications((prev) => prev.filter((application) => !selectedIds.includes(String(application.applicationId))));
-      setSelectedIds([]);
-      setSelectedApplication((current) =>
-        current && selectedIds.includes(String(current.applicationId)) ? null : current,
-      );
-    } catch (err) {
-      const message = err instanceof Error ? err.message : '입점 거절에 실패했습니다.';
-      toast.error(message);
-      throw new Error(message);
-    }
-  }, [accessToken, selectedIds, toast]);
+  const rejectSelected = useCallback(
+    async (reason: string) => {
+      if (!selectedIds.length) {
+        toast.error('거절할 신청을 선택해 주세요.');
+        return;
+      }
+      if (!accessToken) {
+        toast.error('인증 정보가 없습니다. 다시 로그인해 주세요.');
+        return;
+      }
+      try {
+        await Promise.all(selectedIds.map((id) => rejectArtistApplication(Number(id), reason, { accessToken })));
+        toast.success('거절이 완료되었습니다.');
+        setApplications((prev) => prev.filter((a) => !selectedIds.includes(String(a.applicationId))));
+        setSelectedIds([]);
+        setSelectedApplication((current) =>
+          current && selectedIds.includes(String(current.applicationId)) ? null : current,
+        );
+      } catch (err) {
+        const message = err instanceof Error ? err.message : '입점 거절에 실패했습니다.';
+        toast.error(message);
+      }
+    },
+    [accessToken, selectedIds, toast],
+  );
 
-  const rejectSingle = useCallback(async (applicationId: number, reason: string) => {
-    if (!accessToken) {
-      toast.error('인증 정보가 없습니다. 다시 로그인해 주세요.');
-      return;
-    }
-    try {
-      await rejectFundingApplication(applicationId, reason, { accessToken });
-      toast.success('거절이 완료되었습니다.');
-      setApplications((prev) => prev.filter((application) => application.applicationId !== applicationId));
-      setSelectedIds((prev) => prev.filter((id) => Number(id) !== applicationId));
-      setSelectedApplication((current) => (current && current.applicationId === applicationId ? null : current));
-    } catch (err) {
-      const message = err instanceof Error ? err.message : '입점 거절에 실패했습니다.';
-      toast.error(message);
-      throw new Error(message);
-    }
-  }, [accessToken, toast]);
+  const rejectSingle = useCallback(
+    async (applicationId: number, reason: string) => {
+      if (!accessToken) {
+        toast.error('인증 정보가 없습니다. 다시 로그인해 주세요.');
+        return;
+      }
+      try {
+        await rejectArtistApplication(applicationId, reason, { accessToken });
+        toast.success('거절이 완료되었습니다.');
+        setApplications((prev) => prev.filter((a) => a.applicationId !== applicationId));
+        setSelectedIds((prev) => prev.filter((id) => Number(id) !== applicationId));
+        setSelectedApplication((current) => (current && current.applicationId === applicationId ? null : current));
+      } catch (err) {
+        const message = err instanceof Error ? err.message : '입점 거절에 실패했습니다.';
+        toast.error(message);
+      }
+    },
+    [accessToken, toast],
+  );
 
   const approveSingle = useCallback(
     async (applicationId: number) => {
@@ -227,9 +257,9 @@ export default function ApprovalsPage() {
         return;
       }
       try {
-        await approveFundingApplication(applicationId, { accessToken });
+        await approveArtistApplication(applicationId, { accessToken });
         toast.success('승인이 완료되었습니다.');
-        setApplications((prev) => prev.filter((application) => application.applicationId !== applicationId));
+        setApplications((prev) => prev.filter((a) => a.applicationId !== applicationId));
         setSelectedIds((prev) => prev.filter((id) => Number(id) !== applicationId));
         setSelectedApplication((current) => (current && current.applicationId === applicationId ? null : current));
       } catch (err) {
@@ -298,7 +328,6 @@ export default function ApprovalsPage() {
         </form>
       </div>
 
-
       {rejectionModal.open ? (
         <Modal
           title="거절 사유 입력"
@@ -323,6 +352,7 @@ export default function ApprovalsPage() {
           />
         </Modal>
       ) : null}
+
       {selectedApplication ? (
         <Modal
           title="입점 신청 상세보기"
@@ -377,13 +407,8 @@ export default function ApprovalsPage() {
                 { label: '펀딩 제목', value: selectedApplication.fundingTitle },
                 { label: '펀딩 내용', value: selectedApplication.fundingSummary },
               ].map((item) => (
-                <div
-                  key={item.label}
-                  className="grid grid-cols-[140px_1fr] items-center gap-4 py-4 text-sm"
-                >
-                  <dt className="font-semibold text-[var(--color-gray-800)]">
-                    {item.label}
-                  </dt>
+                <div key={item.label} className="grid grid-cols-[140px_1fr] items-center gap-4 py-4 text-sm">
+                  <dt className="font-semibold text-[var(--color-gray-800)]">{item.label}</dt>
                   <dd className="flex flex-wrap items-center gap-3 text-[var(--color-gray-700)]">
                     {item.value ?? '-'}
                   </dd>
@@ -395,18 +420,10 @@ export default function ApprovalsPage() {
                 { label: '통신판매업 신고증 사본', url: selectedApplication.commerceDocument },
               ].map(({ label, url }) =>
                 url ? (
-                  <div
-                    key={label}
-                    className="grid grid-cols-[140px_1fr] items-center gap-4 py-4 text-sm"
-                  >
+                  <div key={label} className="grid grid-cols-[140px_1fr] items-center gap-4 py-4 text-sm">
                     <dt className="font-semibold text-[var(--color-gray-800)]">{label}</dt>
                     <dd>
-                      <Link
-                        href={url}
-                        className="text-primary underline"
-                        target="_blank"
-                        rel="noreferrer"
-                      >
+                      <Link href={url} className="text-primary underline" target="_blank" rel="noreferrer">
                         다운로드
                       </Link>
                     </dd>
@@ -421,8 +438,13 @@ export default function ApprovalsPage() {
   );
 }
 
-
-function RejectForm({ onSubmit, onCancel }: { onSubmit: (reason: string) => Promise<void> | void; onCancel: () => void }) {
+function RejectForm({
+  onSubmit,
+  onCancel,
+}: {
+  onSubmit: (reason: string) => Promise<void> | void;
+  onCancel: () => void;
+}) {
   const [reason, setReason] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
