@@ -114,6 +114,24 @@ export async function uploadProductImages(
   return json.data;
 }
 
+// (첨부파일) s3 이미지 개별 삭제
+export async function deleteProductImage(s3Key: string): Promise<string> {
+  const url = `${process.env.NEXT_PUBLIC_API_BASE_URL}/api/products/images?s3Key=${encodeURIComponent(s3Key)}`;
+  const res = await fetch(url, {
+    method: 'DELETE',
+    headers: { accept: 'application/json;charset=UTF-8' },
+    credentials: 'include',
+  });
+
+  const json = await res.json().catch(() => null);
+  if (!res.ok || !json || json.resultCode !== '200') {
+    const msg = json?.msg || '파일 삭제 실패';
+    throw new Error(msg);
+  }
+  // 서버 예시: data = "product-images/uuid1.png"
+  return json.data as string;
+}
+
 // 상품 생성
 export async function createProduct(dto: ProductCreateDto): Promise<string> {
   const body = normalizePayload(dto);

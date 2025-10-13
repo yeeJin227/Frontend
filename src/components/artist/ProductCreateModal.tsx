@@ -4,7 +4,13 @@ import { useEffect, useMemo, useState } from 'react';
 import X from '@/assets/icon/x.svg';
 import Paperclip from '@/assets/icon/paperclip2.svg';
 import NoticeEditor from '@/components/editor/NoticeEditor';
-import { createProduct, updateProduct, uploadDescriptionImages, uploadProductImages } from '@/services/products';
+import {
+  createProduct,
+  updateProduct,
+  uploadDescriptionImages,
+  uploadProductImages,
+  deleteProductImage,
+} from '@/services/products';
 import { fetchCategoriesClient } from '@/lib/client/categories.client';
 import type { Category } from '@/types/category';
 import { fetchTagsClient } from '@/lib/client/tags.client';
@@ -21,14 +27,40 @@ import type {
   ProductAddonUI,
 } from '@/types/product';
 
+// 유틸
 
-// 서버 LocalDate(YYYY-MM-DD)로 잘라서 보내기
+// 서버 LocalDate(YYYY-MM-DD) 보내기
 const dateOnly = (s?: string | null) => {
   if (!s) return null;
   const d = s.slice(0, 10);
   return /^\d{4}-\d{2}-\d{2}$/.test(d) ? d : null;
 };
 const isBlank = (v?: string | null) => !v || v.trim().length === 0;
+
+const normalizeTagName = (s?: string) => (s ?? '').trim().toLowerCase();
+
+// 파일 고유키
+const fileKey = (f: File) => `${f.name}-${f.size}-${f.lastModified}`;
+
+// 작성 직전 파일 타입 동기화 
+function syncUploadedTypes(
+  files: File[],
+  fileTypes: UploadType[],
+  uploaded: UploadedImageInfo[]
+): UploadedImageInfo[] {
+  const byName = new Map<string, UploadType>();
+  files.forEach((f, i) => byName.set(f.name, fileTypes[i]));
+
+  return uploaded.map((u, i) => {
+    // 1순위: originalFileName
+    const tByName = u.originalFileName ? byName.get(u.originalFileName) : undefined;
+    if (tByName) return { ...u, type: tByName };
+
+    // 2순위(폴백): 인덱스로 동기화
+    const tByIndex = fileTypes[i];
+    return tByIndex ? { ...u, type: tByIndex } : u;
+  });
+}
 
 // 폼 → 판매상태 계산
 function computeSellingStatusFromPayload(p: ProductCreatePayload): 'BEFORE_SELLING' | 'SELLING' | 'SOLD_OUT' | 'END_OF_SALE' {
@@ -43,7 +75,7 @@ function computeSellingStatusFromPayload(p: ProductCreatePayload): 'BEFORE_SELLI
   return 'SELLING';
 }
 
-const normalizeTagName = (s?: string) => (s ?? '').trim().toLowerCase();
+// DTO
 
 // 사업자정보 API 
 type ArtistBizInfo = {
@@ -85,7 +117,7 @@ function toProductCreateDto(
   const deliveryType = payload.shipping.type === 'CONDITIONAL' ? 'CONDITIONAL_FREE' : payload.shipping.type;
   const sellingStatus = computeSellingStatusFromPayload(payload);
 
-  // 이름 → ID 매핑 (정규화)
+  // 이름 → ID 매핑
   const tagIds = (payload.tags ?? [])
     .map((name) => opts.tagDict[normalizeTagName(name)])
     .filter((id): id is number => Number.isInteger(id));
@@ -117,7 +149,6 @@ function toProductCreateDto(
     isPlanned: !!payload.plannedSale,
     isRestock: !!opts.isRestock,
 
-    // 서버 LocalDate 요구에 맞춰 절단
     sellingStartDate: payload.plannedSale ? dateOnly(payload.plannedSale.startAt) : null,
     sellingEndDate: payload.plannedSale ? dateOnly(payload.plannedSale.endAt) : null,
 
@@ -149,6 +180,7 @@ function toProductCreateDto(
   };
 }
 
+
 type Props = {
   open: boolean;
   onClose: () => void;
@@ -171,14 +203,14 @@ type Props = {
   // 공통
   initialBrand?: string;
   initialBizInfo?: {
-    businessName?: string;       // 제조자
-    businessNumber?: string;     // 사업자 등록 번호
-    ownerName?: string;          // 대표자명
-    asManager?: string;          // A/S 책임자 / 전화번호
-    email?: string;              // 전자우편주소
-    businessAddress?: string;    // 사업장 소재지
-    telecomSalesNumber?: string; // 통신 판매업 신고 번호
-  };
+    businessName?: string;    
+    businessNumber?: string;     
+    ownerName?: string;      
+    asManager?: string;         
+    email?: string;          
+    businessAddress?: string;   
+    telecomSalesNumber?: string; 
+  }
 };
 
 export default function ProductCreateModal({
@@ -210,7 +242,7 @@ export default function ProductCreateModal({
   const [tagsError, setTagsError] = useState<string | null>(null);
   const [tagsLoading, setTagsLoading] = useState(false);
 
-  // 상세 필드
+  // 상세
   const [size, setSize] = useState('');
   const [material, setMaterial] = useState('');
   const [origin, setOrigin] = useState('');
@@ -247,7 +279,7 @@ export default function ProductCreateModal({
 
   const [lawCertRequired, setLawCertRequired] = useState<boolean>(false);
 
-  // 7개 사업자 정보 상태
+  // 7개 사업자 정보 
   const [bizInfo, setBizInfo] = useState({
     businessName: initialBizInfo?.businessName ?? '',
     businessNumber: initialBizInfo?.businessNumber ?? '',
@@ -268,20 +300,25 @@ export default function ProductCreateModal({
 
   const [editorFullscreen, setEditorFullscreen] = useState(false);
 
-  // ESC로 닫기 + 바디 스크롤락
-useEffect(() => {
-  if (!editorFullscreen) return;
-  const onKey = (e: KeyboardEvent) => {
-    if (e.key === 'Escape') setEditorFullscreen(false);
-  };
-  window.addEventListener('keydown', onKey);
-  const prev = document.body.style.overflow;
-  document.body.style.overflow = 'hidden';
-  return () => {
-    window.removeEventListener('keydown', onKey);
-    document.body.style.overflow = prev;
-  };
-}, [editorFullscreen]);
+  // 업로드 진행 상태: idle | uploading | done | error
+  const [uploadingMap, setUploadingMap] = useState<Record<string, 'idle' | 'uploading' | 'done' | 'error'>>({});
+  // 파일 → s3Key 매핑 (개별 삭제)
+  const [fileS3Map, setFileS3Map] = useState<Record<string, string | null>>({});
+
+  // ESC로 닫기 
+  useEffect(() => {
+    if (!editorFullscreen) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setEditorFullscreen(false);
+    };
+    window.addEventListener('keydown', onKey);
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => {
+      window.removeEventListener('keydown', onKey);
+      document.body.style.overflow = prev;
+    };
+  }, [editorFullscreen]);
 
   // 모달 열릴 때 태그/카테고리 로드
   useEffect(() => {
@@ -401,7 +438,6 @@ useEffect(() => {
     setOptions(payload.options ?? []);
     setAddons(payload.addons ?? []);
 
-
     setBizInfo((prev) => ({
       businessName: payload.bizInfo?.companyName ?? prev.businessName ?? '',
       businessNumber: payload.bizInfo?.bizNumber ?? prev.businessNumber ?? '',
@@ -415,15 +451,66 @@ useEffect(() => {
     setEditorValue(payload.description ?? '');
   }
 
-  const handleSelectFiles = (incoming: File[]) => {
+  // 파일 선택 → 자동 업로드
+  const handleSelectFiles = async (incoming: File[]) => {
     if (incoming.length === 0) return;
-    const key = (f: File) => `${f.name}-${f.size}-${f.lastModified}`;
-    const dedup = incoming.filter((nf) => !files.some((ef) => key(ef) === key(nf)));
+
+    // 중복 제거 (이미 선택된 파일은 제외)
+    const dedup = incoming.filter(
+      (nf) => !files.some((ef) => fileKey(ef) === fileKey(nf))
+    );
     if (dedup.length === 0) return;
+
+    // UI 표시용 파일/타입 상태 갱신
     const nextFiles = [...files, ...dedup];
     setFiles(nextFiles);
-    const defaults = dedup.map((_, i) => (files.length === 0 && i === 0 ? 'MAIN' : 'ADDITIONAL'));
-    setFileTypes((prev) => [...prev, ...defaults]);
+
+    // 타입 기본값: 첫 파일만 MAIN, 나머지는 ADDITIONAL
+    const defaultsForNew = dedup.map((_, i) =>
+      files.length === 0 && i === 0 ? 'MAIN' : 'ADDITIONAL'
+    );
+    setFileTypes((prev) => [...prev, ...defaultsForNew]);
+
+    // 업로드 상태: 신규 파일만 uploading 마킹
+    setUploadingMap((prev) => {
+      const next = { ...prev };
+      dedup.forEach((f) => (next[fileKey(f)] = 'uploading'));
+      return next;
+    });
+
+    // 신규로 선택한 파일만 업로드 호출 (이미 업로드한 파일은 재업로드 X)
+    try {
+      const uploaded = await uploadProductImages(dedup, defaultsForNew);
+      // 업로드 성공 → 전역 업로드 결과 누적
+      setUploadedImages((prev) => [...prev, ...uploaded]);
+
+      // 파일 → s3Key 매핑 저장
+      setFileS3Map((prev) => {
+        const next = { ...prev };
+        dedup.forEach((f, i) => {
+          const key = fileKey(f);
+          const s3Key = uploaded[i]?.s3Key ?? null;
+          next[key] = s3Key;
+        });
+        return next;
+      });
+
+      // 상태 완료 처리
+      setUploadingMap((prev) => {
+        const next = { ...prev };
+        dedup.forEach((f) => (next[fileKey(f)] = 'done'));
+        return next;
+      });
+    } catch (e: any) {
+      alert(e?.message ?? '이미지 업로드 실패');
+
+      // 업로드 실패 
+      setUploadingMap((prev) => {
+        const next = { ...prev };
+        dedup.forEach((f) => (next[fileKey(f)] = 'error'));
+        return next;
+      });
+    }
   };
 
   const handleChangeFileType = (index: number, newType: UploadType) => {
@@ -434,69 +521,31 @@ useEffect(() => {
     });
   };
 
-  const handleUploadImages = async () => {
-    if (files.length === 0) return alert('파일을 선택하세요.');
+  // (에디터) 설명 이미지 업로드
+  const handleUploadDescImage = async (fileOrFiles: File | File[] | FileList): Promise<string> => {
+    const files: File[] = Array.isArray(fileOrFiles)
+      ? fileOrFiles
+      : fileOrFiles instanceof FileList
+      ? Array.from(fileOrFiles)
+      : [fileOrFiles];
+
+    let urls: string[] = [];
     try {
-      const uploaded = await uploadProductImages(files, fileTypes);
-      setUploadedImages(uploaded);
-      alert('이미지 업로드 성공');
-    } catch (e: unknown) {
-      const msg = e instanceof Error ? e.message : '이미지 업로드 실패';
-      alert(msg);
+      urls = await uploadDescriptionImages(files); // S3에 모두 업로드 → URL 배열
+    } catch (e: any) {
+      alert(e?.message ?? '설명 이미지 업로드에 실패했습니다.');
+      throw e;
     }
+
+    if (!urls.length) throw new Error('설명 이미지 URL을 받지 못했습니다.');
+
+    setEditorValue((prev) => {
+      const imgs = urls.map((u) => `<p><img src="${u}" alt="" /></p>`).join('');
+      return (prev ?? '') + imgs;
+    });
+
+    return urls[0];
   };
-
-  // 작가 사업자 정보 API 호출
-  const handleFetchArtistBizInfo = async () => {
-    setBizLoading(true);
-    const data = await fetchArtistBusinessInfo();
-    setBizLoading(false);
-    if (!data) return;
-
-    setBizInfo((prev) => ({
-      businessName: data.businessName ?? prev.businessName,
-      businessNumber: data.businessNumber ?? prev.businessNumber,
-      ownerName: data.ownerName ?? prev.ownerName,
-      asManager: data.asManager ?? prev.asManager,
-      email: data.email ?? prev.email,
-      businessAddress: data.businessAddress ?? prev.businessAddress,
-      telecomSalesNumber: data.telecomSalesNumber ?? prev.telecomSalesNumber,
-    }));
-  };
-
-  // 에디터 (description) 이미지 업로드
-  // 기존 단일 파일용 → 멀티 파일도 지원하도록 교체
-const handleUploadDescImage = async (fileOrFiles: File | File[] | FileList): Promise<string> => {
-  // 1) 어떤 타입이 와도 files 배열로 통일
-  const files: File[] = Array.isArray(fileOrFiles)
-    ? fileOrFiles
-    : fileOrFiles instanceof FileList
-    ? Array.from(fileOrFiles)
-    : [fileOrFiles];
-
-  // 2) 업로드
-  let urls: string[] = [];
-  try {
-    urls = await uploadDescriptionImages(files); // S3에 모두 업로드 → URL 배열
-  } catch (e: any) {
-    alert(e?.message ?? '설명 이미지 업로드에 실패했습니다.');
-    throw e;
-  }
-
-  if (!urls.length) throw new Error('설명 이미지 URL을 받지 못했습니다.');
-
-  // 3) 에디터 본문에 여러 장 모두 삽입
-  //    - 에디터가 HTML을 허용한다면 <img> 태그로 추가
-  //    - 에디터가 Markdown이라면 ![]() 형태로 추가
-  setEditorValue((prev) => {
-    const imgs = urls.map((u) => `<p><img src="${u}" alt="" /></p>`).join('');
-    return (prev ?? '') + imgs;
-  });
-
-  // 4) onUploadImage의 계약을 유지하기 위해 "첫 번째" URL만 반환
-  return urls[0];
-};
-
 
   // 폼 payload
   const buildPayload = (): ProductCreatePayload => ({
@@ -619,7 +668,6 @@ const handleUploadDescImage = async (fileOrFiles: File | File[] | FileList): Pro
     // KC 인증 여부
     if (p.certification == null) errs.push('KC 인증 여부는 필수입니다.');
 
-
     // 옵션/추가상품 사용 시
     if (ctx.usingOptions) {
       (p.options ?? []).forEach((o, i) => {
@@ -640,11 +688,63 @@ const handleUploadDescImage = async (fileOrFiles: File | File[] | FileList): Pro
     return errs;
   }
 
+  // 개별 삭제
+  const removeOneFile = async (idx: number) => {
+    const target = files[idx];
+    const key = fileKey(target);
+    const status = uploadingMap[key] ?? 'idle';
+
+    if (status === 'uploading') {
+      alert('이 파일은 업로드 중이에요. 잠시 후 다시 시도해주세요.');
+      return;
+    }
+
+    // s3Key 탐색: 1) fileS3Map 2) uploadedImages에서 originalFileName 매칭 폴백
+    const s3Key =
+      fileS3Map[key] ??
+      uploadedImages.find((u) => u.originalFileName === target.name)?.s3Key ??
+      null;
+
+    // 서버(S3) 삭제
+    if (status === 'done' && s3Key) {
+      try {
+        await deleteProductImage(s3Key);
+      } catch (e: any) {
+        alert(e?.message ?? 'S3 파일 삭제에 실패했습니다.');
+        return; // 서버 삭제 실패 시 로컬 상태는 유지
+      }
+    }
+
+    // 로컬 상태 제거
+    const nextFiles = files.filter((_, i) => i !== idx);
+    const nextTypes = fileTypes.filter((_, i) => i !== idx);
+    const nextPreviews = previews.filter((_, i) => i !== idx);
+    setFiles(nextFiles);
+    setFileTypes(nextTypes);
+    setPreviews(nextPreviews);
+
+    setUploadingMap((prev) => {
+      const { [key]: _, ...rest } = prev;
+      return rest;
+    });
+
+    setFileS3Map((prev) => {
+      const { [key]: _, ...rest } = prev;
+      return rest;
+    });
+
+    if (s3Key) {
+      setUploadedImages((prev) => prev.filter((u) => u.s3Key !== s3Key));
+    } else {
+      setUploadedImages((prev) => prev.filter((u) => u.originalFileName !== target.name));
+    }
+  };
+
   // 생성
   const handleCreate = async () => {
     const payload = buildPayload();
 
-    // 서버 DTO 규칙에 맞춘 1차 검증
+    // 서버 DTO 규칙
     const errs = validateAgainstBackendRules(payload, {
       uploadedImages,
       shippingType,
@@ -658,7 +758,9 @@ const handleUploadDescImage = async (fileOrFiles: File | File[] | FileList): Pro
       return;
     }
 
-    const dto = toProductCreateDto(payload, { uploadedImages, tagDict, isRestock });
+    // 타입 동기화
+    const syncedImages = syncUploadedTypes(files, fileTypes, uploadedImages);
+    const dto = toProductCreateDto(payload, { uploadedImages: syncedImages, tagDict, isRestock });
 
     try {
       setSubmitting(true);
@@ -677,7 +779,7 @@ const handleUploadDescImage = async (fileOrFiles: File | File[] | FileList): Pro
   const handleUpdate = async () => {
     const payload = buildPayload();
 
-    // 서버 DTO 규칙에 맞춘 1차 검증
+    // 서버 DTO 규칙
     const errs = validateAgainstBackendRules(payload, {
       uploadedImages,
       shippingType,
@@ -691,12 +793,14 @@ const handleUploadDescImage = async (fileOrFiles: File | File[] | FileList): Pro
       return;
     }
 
-    const dto = toProductCreateDto(payload, { uploadedImages, tagDict, isRestock });
-
     if (!productUuid) {
       alert('이 상품의 productUuid를 찾지 못해 수정할 수 없습니다.');
       return;
     }
+
+    // 타입 동기화
+    const syncedImages = syncUploadedTypes(files, fileTypes, uploadedImages);
+    const dto = toProductCreateDto(payload, { uploadedImages: syncedImages, tagDict, isRestock });
 
     try {
       setSubmitting(true);
@@ -1208,7 +1312,21 @@ const handleUploadDescImage = async (fileOrFiles: File | File[] | FileList): Pro
                   <span className="w-40 text-sm">사업자 정보</span>
                   <button
                     type="button"
-                    onClick={handleFetchArtistBizInfo}
+                    onClick={async () => {
+                      setBizLoading(true);
+                      const data = await fetchArtistBusinessInfo();
+                      setBizLoading(false);
+                      if (!data) return;
+                      setBizInfo((prev) => ({
+                        businessName: data.businessName ?? prev.businessName,
+                        businessNumber: data.businessNumber ?? prev.businessNumber,
+                        ownerName: data.ownerName ?? prev.ownerName,
+                        asManager: data.asManager ?? prev.asManager,
+                        email: data.email ?? prev.email,
+                        businessAddress: data.businessAddress ?? prev.businessAddress,
+                        telecomSalesNumber: data.telecomSalesNumber ?? prev.telecomSalesNumber,
+                      }));
+                    }}
                     className="shrink-0 text-sm border rounded px-3 py-2 hover:bg-black/5 disabled:opacity-60"
                     disabled={bizLoading}
                   >
@@ -1305,11 +1423,11 @@ const handleUploadDescImage = async (fileOrFiles: File | File[] | FileList): Pro
           {editorFullscreen && (
             <div
               className="fixed inset-0 z-[1000] bg-black/60 flex items-center justify-center"
-              onClick={() => setEditorFullscreen(false)} // 바깥 클릭 시 닫힘
+              onClick={() => setEditorFullscreen(false)}
             >
               <div
                 className="bg-white rounded-xl shadow-2xl w-[min(1200px,95vw)] h-[85vh] flex flex-col"
-                onClick={(e) => e.stopPropagation()} // 내부 클릭 전파 막기
+                onClick={(e) => e.stopPropagation()}
               >
                 {/* 상단 바 */}
                 <div className="flex items-center justify-between px-4 py-3 border-b border-gray-200">
@@ -1331,8 +1449,8 @@ const handleUploadDescImage = async (fileOrFiles: File | File[] | FileList): Pro
                     value={editorValue}
                     onChange={setEditorValue}
                     onUploadImage={handleUploadDescImage}
-                    minHeight={window?.innerHeight ? Math.max(480, Math.floor(window.innerHeight * 0.6)) : 480}
-                    maxHeight={window?.innerHeight ? Math.floor(window.innerHeight * 0.8) : 700}
+                    minHeight={typeof window !== 'undefined' ? Math.max(480, Math.floor(window.innerHeight * 0.6)) : 480}
+                    maxHeight={typeof window !== 'undefined' ? Math.floor(window.innerHeight * 0.8) : 700}
                   />
                 </div>
 
@@ -1384,78 +1502,96 @@ const handleUploadDescImage = async (fileOrFiles: File | File[] | FileList): Pro
                   className="w-full rounded border border-[var(--color-gray-200)] px-3 py-2 pr-24 leading-none text-sm"
                   onClick={() => document.getElementById('fileInput')?.click()}
                 />
-                {files.length > 0 ? (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setFiles([]);
-                      setFileTypes([]);
-                    }}
-                    className="absolute right-2 top-1/2 -translate-y-1/2 rounded border border-[var(--color-primary)] px-3 py-1 text-sm leading-none transition hover:bg-primary-20"
-                  >
-                    파일 삭제
-                  </button>
-                ) : (
-                  <label
-                    htmlFor="fileInput"
-                    className="absolute right-2 top-1/2 -translate-y-1/2 cursor-pointer rounded border border-[var(--color-primary)] px-3 py-1 text-sm leading-none transition hover:bg-primary-20"
-                  >
-                    파일 선택
-                  </label>
-                )}
+                {/* 파일 선택 */}
+                <label
+                  htmlFor="fileInput"
+                  className="absolute right-2 top-1/2 -translate-y-1/2 cursor-pointer rounded border border-[var(--color-primary)] px-3 py-1 text-sm leading-none transition hover:bg-primary-20"
+                >
+                  파일 선택
+                </label>
               </div>
             </div>
           </section>
 
-          {/* 파일 타입 지정 + 업로드 버튼 */}
+          {/* 파일 타입 지정 + 개별 삭제 */}
           {files.length > 0 && (
             <div className="mt-4 space-y-3">
               <div className="space-y-2">
                 <p className="text-sm font-medium">업로드할 파일 타입</p>
-                {files.map((file, idx) => (
-                  <div key={`${file.name}-${file.size}-${idx}`} className="flex items-center gap-3 text-sm">
-                    {/* 미리보기 */}
-                    <div className="w-10 h-10 rounded overflow-hidden bg-gray-100 flex items-center justify-center shrink-0">
-                      {previews[idx] ? (
-                        <img
-                          src={previews[idx]}
-                          alt={file.name}
-                          className="w-full h-full object-cover"
-                          draggable={false}
-                        />
-                      ) : (
-                        <span className="text-[10px] text-gray-500 px-1 text-center leading-tight">미리보기 없음</span>
-                      )}
+                {files.map((file, idx) => {
+                  const key = fileKey(file);
+                  const status = uploadingMap[key] ?? 'idle';
+
+                  return (
+                    <div key={`${file.name}-${file.size}-${idx}`} className="flex items-center gap-3 text-sm">
+                      {/* 미리보기 */}
+                      <div className="w-10 h-10 rounded overflow-hidden bg-gray-100 flex items-center justify-center shrink-0">
+                        {previews[idx] ? (
+                          <img
+                            src={previews[idx]}
+                            alt={file.name}
+                            className="w-full h-full object-cover"
+                            draggable={false}
+                          />
+                        ) : (
+                          <span className="text-[10px] text-gray-500 px-1 text-center leading-tight">미리보기 없음</span>
+                        )}
+                      </div>
+
+                      {/* 파일명 */}
+                      <span className="flex-1 truncate">{file.name}</span>
+
+                      {/* 상태 표시 */}
+                      <span
+                        className={
+                          'px-2 py-1 rounded text-xs ' +
+                          (status === 'uploading'
+                            ? 'bg-yellow-100 text-yellow-800'
+                            : status === 'done'
+                            ? 'bg-green-100 text-green-800'
+                            : status === 'error'
+                            ? 'bg-red-100 text-red-700'
+                            : 'bg-gray-100 text-gray-700')
+                        }
+                      >
+                        {status === 'uploading' && '업로드 중…'}
+                        {status === 'done' && '완료'}
+                        {status === 'error' && '실패'}
+                        {status === 'idle' && '대기'}
+                      </span>
+
+                      {/* 타입 선택 */}
+                      <select
+                        value={fileTypes[idx]}
+                        onChange={(e) => handleChangeFileType(idx, e.target.value as UploadType)}
+                        className="rounded border border-[var(--color-gray-200)] py-1.5 px-2"
+                        disabled={status === 'uploading'}
+                        title={status === 'uploading' ? '업로드 중에는 변경할 수 없어요' : undefined}
+                      >
+                        <option value="MAIN">대표 이미지</option>
+                        <option value="ADDITIONAL">추가 이미지</option>
+                        <option value="THUMBNAIL">썸네일</option>
+                        <option value="DOCUMENT">문서</option>
+                      </select>
+
+                      {/* 개별 삭제 */}
+                      <button
+                        type="button"
+                        onClick={() => removeOneFile(idx)}
+                        disabled={status === 'uploading'}
+                        className="ml-1 rounded border px-2 py-1 hover:bg-black/5 disabled:opacity-60"
+                        title={status === 'uploading' ? '업로드 중에는 삭제할 수 없어요' : '이 파일 삭제'}
+                      >
+                        삭제
+                      </button>
                     </div>
-
-                    {/* 파일명 */}
-                    <span className="flex-1 truncate">{file.name}</span>
-
-                    {/* 타입 선택 */}
-                    <select
-                      value={fileTypes[idx]}
-                      onChange={(e) => handleChangeFileType(idx, e.target.value as UploadType)}
-                      className="rounded border border-[var(--color-gray-200)] py-1.5 px-2"
-                    >
-                      <option value="MAIN">대표 이미지</option>
-                      <option value="ADDITIONAL">추가 이미지</option>
-                      <option value="THUMBNAIL">썸네일</option>
-                      <option value="DOCUMENT">문서</option>
-                    </select>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
 
-              <div className="flex justify-end">
-                <button
-                  type="button"
-                  onClick={handleUploadImages}
-                  className="text-sm border border-[var(--color-primary)] rounded-md px-3 py-2 hover:bg-primary-20"
-                >
-                  업로드
-                </button>
-              </div>
-              <p className="inline-block text-xs text-gray-500 bg-primary-20 p-1 my-2">* 이미지는 최소 1개 이상 업로드해주세요.</p>
+              <p className="inline-block text-xs text-gray-500 bg-primary-20 p-1 my-2">
+                * 파일을 선택하면 자동으로 업로드됩니다. (개별 삭제 시 S3에서도 함께 삭제돼요)
+              </p>
             </div>
           )}
         </div>
