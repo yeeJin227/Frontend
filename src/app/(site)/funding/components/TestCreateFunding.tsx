@@ -6,11 +6,11 @@ import { createNewFunding } from '@/utils/api/funding';
 function TestCreateFunding() {
   const handleCreateFunding = async () => {
     await createNewFunding({
-      title: '포카칩 pro max',
-      description: '맛있는 포카칩',
-      categoryId: 0,
+      title: '마이폰 pro max',
+      description: '멋있는 아이폰 ^^',
+      categoryId: 3,
       imageUrl:
-        'https://i.namu.wiki/i/1xpHfMVtPVhBnkTV5eZOdqtLiafYS93RhGKcavsc8shwJmgkv2rcmpg2D6X42pOEzb3B8rT3Rkr97Gcc6GMvUA.webp',
+        'https://i.namu.wiki/i/gi2iAhtDbTXfXsKyzfqH7lZ8eHEjm9h4ibdxgwqIW3Yi4cW6RjYFMJNqfM1gPcdr15fF2kamuUkYukjD9WqkkL6u46Locny0MajKTBRNZlIQVBqCD1asNI2r2ju0bb2LS1gxKsUX0_OiiLbPlUhhrg.webp',
       targetAmount: 50,
       startDate: '2025-10-12T16:37:20.862Z',
       endDate: '2025-10-13T16:37:20.862Z',

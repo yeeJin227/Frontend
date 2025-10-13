@@ -7,6 +7,7 @@ import { SortDropdown } from './components/SortDropdown';
 import { FundingGrid } from './components/FundingGrid';
 import { fetchFundingList } from '@/utils/api/funding';
 import { FundingListProps, FundingStatus, SortBy } from '@/types/funding';
+import TestCreateFunding from './components/TestCreateFunding';
 
 type SearchParams = {
   status?: string;
@@ -88,6 +89,7 @@ export default async function FundingPage({ searchParams }: FundingPageProps) {
             totalPages={fundingResponse.data.totalPages}
             currentPage={params.page || 0}
           />
+          {/* <TestCreateFunding /> */}
         </main>
       </div>
     </>
