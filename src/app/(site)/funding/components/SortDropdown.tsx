@@ -7,8 +7,8 @@ import { useRouter, useSearchParams } from 'next/navigation';
 const sortOptions = [
   { id: 'popular', label: '인기순' },
   { id: 'recent', label: '최신순' },
-  { id: 'reviews', label: '리뷰 많은순' },
-  { id: 'rating', label: '별점 높은순' },
+  { id: 'deadline', label: '마감 임박' },
+  { id: 'highAmount', label: '목표금액 높은순' },
 ];
 const sorOptionToKr = (input: string) => {
   return sortOptions.find((elem) => elem.id === input)?.label;
