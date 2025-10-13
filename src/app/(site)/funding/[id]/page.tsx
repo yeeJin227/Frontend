@@ -73,6 +73,9 @@ export default async function FundingDetailPage({
             id={funding.id}
             title={funding.title}
             category={funding.categoryName}
+            price={funding.price} // 추가
+            stock={funding.stock} // 추가
+            soldCount={funding.soldCount} // 추가
             currentAmount={funding.currentAmount}
             targetAmount={funding.targetAmount}
             remainingDays={funding.remainingDays}

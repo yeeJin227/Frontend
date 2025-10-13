@@ -9,6 +9,9 @@ interface ProductInfoProps {
   id: number;
   title: string;
   category: string;
+  price: number; // 추가
+  stock: number; // 추가
+  soldCount: number; // 추가
   currentAmount: number;
   targetAmount: number;
   remainingDays: number;
@@ -19,6 +22,9 @@ interface ProductInfoProps {
 export default function ProductInfo({
   title,
   category,
+  price,
+  stock,
+  soldCount,
   currentAmount,
   targetAmount,
   remainingDays,
@@ -26,6 +32,7 @@ export default function ProductInfo({
 }: ProductInfoProps) {
   const [isWishlisted, setIsWishlisted] = useState(false);
   const isFundingEnded = remainingDays < 0;
+  const isOutOfStock = stock <= 0;
 
   return (
     <div className="space-y-6 ml-[92px]">
@@ -37,6 +44,29 @@ export default function ProductInfo({
       </div>
 
       <div className="space-y-2 grid gap-7 text-[26px]">
+        {/* 가격 정보 추가 */}
+        <div>
+          <p>가격</p>
+          <div className="text-3xl font-bold text-gray-900">
+            {price.toLocaleString()}
+            <span className="text-[18px] font-normal">원</span>
+          </div>
+        </div>
+
+        {/* 재고/판매 정보 추가 */}
+        <div>
+          <p>재고 현황</p>
+          <div className="flex gap-4 items-center">
+            <div className="font-bold text-gray-900">
+              {stock.toLocaleString()}
+              <span className="text-[18px] font-normal">개 남음</span>
+            </div>
+            <div className="text-gray-500 font-normal text-[18px]">
+              {soldCount.toLocaleString()}개 판매됨
+            </div>
+          </div>
+        </div>
+
         <div>
           <p>모인 금액</p>
           <div className="flex gap-20">
@@ -49,6 +79,7 @@ export default function ProductInfo({
             </div>
           </div>
         </div>
+
         <div>
           <p>남은 기간</p>
           {remainingDays > 0 && (
@@ -63,6 +94,7 @@ export default function ProductInfo({
             </div>
           )}
         </div>
+
         <div>
           <p>후원자</p>
           <div className="font-bold text-gray-900">
@@ -72,25 +104,11 @@ export default function ProductInfo({
         </div>
       </div>
 
-      {/* <div className="space-x-3 flex gap-7">
-        <button className="max-w-[162px] w-full bg-white border-1 border-primary text-primary py-3 px-6 rounded-[6px] text-[25px] font-bold hover:bg-green-50 transition-colors">
-          장바구니
-        </button>
-        <button className="max-w-[162px] w-full bg-primary text-white py-3 px-6 rounded-[6px] hover:bg-primary-60 transition-colors text-[25px] font-bold">
-          예약 구매
-        </button>
-        <button
-          onClick={() => setIsWishlisted(!isWishlisted)}
-          className="p-3 border rounded-lg transition-colors border-gray-300"
-        >
-          {isWishlisted ? <FullHeart /> : <EmptyHeart />}
-        </button>
-      </div> */}
       <div className="space-x-3 flex gap-7">
         <button
-          disabled={isFundingEnded}
+          disabled={isFundingEnded || isOutOfStock}
           className={`max-w-[162px] w-full border-1 py-3 px-6 rounded-[6px] text-[25px] font-bold transition-colors ${
-            isFundingEnded
+            isFundingEnded || isOutOfStock
               ? 'bg-gray-200 border-gray-300 text-gray-400 cursor-not-allowed'
               : 'bg-white border-primary text-primary hover:bg-green-50'
           }`}
@@ -98,9 +116,9 @@ export default function ProductInfo({
           장바구니
         </button>
         <button
-          disabled={isFundingEnded}
+          disabled={isFundingEnded || isOutOfStock}
           className={`max-w-[162px] w-full py-3 px-6 rounded-[6px] text-[25px] font-bold transition-colors ${
-            isFundingEnded
+            isFundingEnded || isOutOfStock
               ? 'bg-gray-400 text-gray-200 cursor-not-allowed'
               : 'bg-primary text-white hover:bg-primary-60'
           }`}
@@ -120,10 +138,15 @@ export default function ProductInfo({
         </button>
       </div>
 
-      {/* ⭐ 종료 메시지 표시 (선택사항) */}
+      {/* 상태 메시지 */}
       {isFundingEnded && (
         <p className="text-red-500 text-sm font-semibold">
           이 펀딩은 종료되었습니다.
+        </p>
+      )}
+      {!isFundingEnded && isOutOfStock && (
+        <p className="text-red-500 text-sm font-semibold">
+          재고가 모두 소진되었습니다.
         </p>
       )}
     </div>

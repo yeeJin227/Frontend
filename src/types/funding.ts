@@ -164,6 +164,9 @@ export interface FundingDetail {
   imageUrl: string;
   categoryName: string;
   targetAmount: number;
+  price: number;
+  stock: number;
+  soldCount: number;
   currentAmount: number;
   participants: number;
   startDate: string;
@@ -172,7 +175,6 @@ export interface FundingDetail {
   progress: number;
   status: FundingStatus;
   author: FundingDetailAuthor;
-  options: FundingOption[];
   news: FundingNews[];
   communities: FundingCommunity[];
 }
