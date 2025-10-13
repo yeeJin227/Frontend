@@ -120,29 +120,32 @@ function resolveNoticeList(data: unknown): NoticeList {
   };
 
   const notices: NoticeSummary[] = Array.isArray(payload.notices)
-    ? payload.notices
-        .map((item) => {
-          if (!item || typeof item !== 'object') return null;
-          const raw = item as {
-            id?: unknown;
-            title?: unknown;
-            isImportant?: unknown;
-            viewCount?: unknown;
-            documentCount?: unknown;
-            createDate?: unknown;
-          };
-          const id = Number(raw.id);
-          if (!Number.isFinite(id)) return null;
-          return {
-            id,
-            title: typeof raw.title === 'string' ? raw.title : '',
-            isImportant: Boolean(raw.isImportant),
-            viewCount: Number(raw.viewCount ?? 0) || 0,
-            documentCount: Number(raw.documentCount ?? 0) || 0,
-            createDate: typeof raw.createDate === 'string' ? raw.createDate : undefined,
-          } satisfies NoticeSummary;
-        })
-        .filter((item): item is NoticeSummary => Boolean(item))
+    ? payload.notices.reduce<NoticeSummary[]>((acc, item) => {
+        if (!item || typeof item !== 'object') {
+          return acc;
+        }
+        const raw = item as {
+          id?: unknown;
+          title?: unknown;
+          isImportant?: unknown;
+          viewCount?: unknown;
+          documentCount?: unknown;
+          createDate?: unknown;
+        };
+        const id = Number(raw.id);
+        if (!Number.isFinite(id)) {
+          return acc;
+        }
+        acc.push({
+          id,
+          title: typeof raw.title === 'string' ? raw.title : '',
+          isImportant: Boolean(raw.isImportant),
+          viewCount: Number(raw.viewCount ?? 0) || 0,
+          documentCount: Number(raw.documentCount ?? 0) || 0,
+          createDate: typeof raw.createDate === 'string' ? raw.createDate : undefined,
+        });
+        return acc;
+      }, [])
     : [];
 
   const rawCurrentPage = Number(payload.currentPage);
