@@ -6,7 +6,7 @@ import CategoryBtn from '@/components/mainCategory/CategoryBtn';
 import FilteredSection from '@/components/mainCategory/FilteredSection';
 import ProductSlider from '@/components/main/ProductSlider.client';
 
-import { fetchProductList } from '@/lib/client/products.client';
+import { fetchProductList } from '@/lib/server/products.client';
 import { fetchCategoriesServer } from '@/lib/server/categories.server';
 import type { Category } from '@/types/category';
 import { buildCategoryPath, parseCategoryParamToId } from '@/utils/slug';

@@ -1,39 +1,29 @@
 'use client';
 
 import { useEffect, useMemo, useState, type Key } from 'react';
-import AdminDataTable, { AdminTableColumn, SortDirection } from '@/components/admin/AdminDataTable';
 import Button from '@/components/Button';
 import SearchIcon from '@/assets/icon/search.svg';
+import ArtistDataTable, { ArtistTableColumn, SortDirection } from '@/components/artist/ArtistDataTable';
+import { fetchArtistOrders } from '@/services/artistDashboard';
+import type { ArtistOrdersParams } from '@/types/artistDashboard';
+import { toRow, type OrderRow } from './adapters';
 
-import { fetchArtistExchangeRequests } from '@/services/artistDashboard';
-import { toRow, type ExchangeRow } from './adapters';
-import { ArtistExchangeParams } from '@/types/artistDashboard';
-
-const columns: AdminTableColumn<ExchangeRow>[] = [
+const columns: ArtistTableColumn<OrderRow>[] = [
   { key: 'id', header: '주문번호', align: 'center', sortable: true },
   { key: 'statusText', header: '상품명', align: 'left', sortable: true },
   { key: 'buyer', header: '구매자 이름 / ID', align: 'center', sortable: true },
-  { key: 'requestState', header: '주문상태', align: 'center', sortable: true },
+  { key: 'orderState', header: '주문상태', align: 'center', sortable: true },
   { key: 'requestAt', header: '주문일자', align: 'center', sortable: true },
 ];
 
-// UI 정렬키 → API 정렬필드 매핑
-const SORT_MAP: Record<string, string> = {
-  id: 'orderNumber',
-  statusText: 'productName',
-  buyer: 'customerNickname',
-  requestState: 'status',
-  requestAt: 'requestDate',
-};
-
-export default function OrderExchangePage() {
-  const [rows, setRows] = useState<ExchangeRow[]>([]);
+export default function OrdersPage() {
+  const [rows, setRows] = useState<OrderRow[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   // 검색/정렬/페이징
   const [searchTerm, setSearchTerm] = useState('');
-  const [sortKey, setSortKey] = useState<keyof ExchangeRow | undefined>();
+  const [sortKey, setSortKey] = useState<keyof OrderRow | undefined>(undefined);
   const [sortDirection, setSortDirection] = useState<SortDirection>('asc');
   const [page, setPage] = useState(1); // 1-base UI
   const [size] = useState(10);
@@ -41,25 +31,28 @@ export default function OrderExchangePage() {
 
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
 
-  const query: ArtistExchangeParams = useMemo(() => {
-    const apiSortKey = sortKey ? (SORT_MAP[String(sortKey)] ?? undefined) : undefined;
+  // API 파라미터 조립
+  const query: ArtistOrdersParams = useMemo(() => {
+    const sort = sortKey ? String(sortKey) : undefined;
     const order: 'ASC' | 'DESC' = sortDirection === 'asc' ? 'ASC' : 'DESC';
     return {
       page,
       size,
       keyword: searchTerm || undefined,
-      sort: apiSortKey,
+      sort,
       order,
+      // 필요 시 status/startDate/endDate 추가
     };
   }, [page, size, searchTerm, sortKey, sortDirection]);
 
+  // 데이터 로드
   useEffect(() => {
     let alive = true;
     (async () => {
       setLoading(true);
       setError(null);
       try {
-        const data = await fetchArtistExchangeRequests(query);
+        const data = await fetchArtistOrders(query); // ArtistOrderResponseDTO.List
         const mapped = (data.content ?? []).map(toRow);
         if (!alive) return;
         setRows(mapped);
@@ -67,7 +60,7 @@ export default function OrderExchangePage() {
         setSelectedIds([]);
       } catch (e: any) {
         if (!alive) return;
-        setError(e?.message ?? '교환 요청 목록 조회 실패');
+        setError(e?.message ?? '주문 목록 조회 실패');
         setRows([]);
         setTotalPages(1);
       } finally {
@@ -79,28 +72,26 @@ export default function OrderExchangePage() {
     };
   }, [query]);
 
+  const updateSort = (key: string, direction: SortDirection) => {
+    setSortKey(key as keyof OrderRow);
+    setSortDirection(direction);
+    setPage(1);
+  };
+
+  const handleSelectionChange = (keys: Key[]) => {
+    setSelectedIds(keys.map((k) => String(k)));
+  };
+
   return (
     <>
       <div className="mb-5 flex items-center justify-between">
-        <h3 className="text-2xl font-bold">교환 요청</h3>
+        <h3 className="text-2xl font-bold">주문 내역</h3>
         <div className="flex gap-2">
-          <Button
-            variant="outline"
-            disabled={selectedIds.length === 0}
-            onClick={() => {
-              // TODO: 교환 거부
-            }}
-          >
-            교환 거부
+          <Button variant="outline" onClick={() => { /* TODO: 엑셀 다운로드 */ }}>
+            주문 엑셀 다운로드
           </Button>
-          <Button
-            variant="primary"
-            disabled={selectedIds.length === 0}
-            onClick={() => {
-              // TODO: 교환 승인
-            }}
-          >
-            교환 승인
+          <Button variant="primary" disabled={selectedIds.length === 0} onClick={() => { /* TODO: 상태 변경 */ }}>
+            주문 상태 변경
           </Button>
         </div>
       </div>
@@ -111,22 +102,19 @@ export default function OrderExchangePage() {
         </div>
       )}
 
-      <AdminDataTable
+      <ArtistDataTable
         columns={columns}
         rows={loading ? [] : rows}
         rowKey={(row) => row.id}
-        sortKey={sortKey}
+        sortKey={sortKey ? String(sortKey) : undefined}
         sortDirection={sortDirection}
-        onSortChange={(k, d) => {
-          setSortKey(k as keyof ExchangeRow);
-          setSortDirection(d);
-          setPage(1);
-        }}
+        onSortChange={updateSort}
         selectedRowKeys={selectedIds}
-        onSelectionChange={(keys: Key[]) => setSelectedIds(keys.map(String))}
+        onSelectionChange={handleSelectionChange}
         emptyText={loading ? '불러오는 중…' : '데이터가 없습니다.'}
       />
 
+      {/* 페이지네이션 + 검색 */}
       <div className="relative mt-6 flex items-center justify-center">
         <nav className="flex items-center gap-4 text-sm text-[var(--color-gray-700)]">
           <button
@@ -137,6 +125,7 @@ export default function OrderExchangePage() {
           >
             ‹
           </button>
+
           {Array.from({ length: totalPages }).slice(0, 7).map((_, i) => {
             const n = i + 1;
             return (
@@ -151,6 +140,7 @@ export default function OrderExchangePage() {
               </button>
             );
           })}
+
           <button
             className="px-2 py-1 hover:text-primary disabled:opacity-40"
             aria-label="Next"

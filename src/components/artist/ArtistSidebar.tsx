@@ -16,7 +16,7 @@ const adminLinks: AdminLink[] = [
   {
     label: "주문 관리",
     children: [
-      { href: "/artist/orders/list", label: "주문 내역" },
+      { href: "/artist/orders", label: "주문 내역" },        // ← child는 '완전 일치'만 active
       { href: "/artist/orders/cancel", label: "취소 요청" },
       { href: "/artist/orders/exchange", label: "교환 요청" },
     ],
@@ -33,9 +33,13 @@ const adminLinks: AdminLink[] = [
   { href: "/artist/account-setting", label: "판매자 설정" },
 ];
 
-type AdminSidebarProps = {
-  className?: string;
-};
+type AdminSidebarProps = { className?: string };
+
+const normalize = (p: string) => (p.replace(/\/+$/, "") || "/");
+const isPrefix = (current: string, target?: string) =>
+  target ? normalize(current).startsWith(`${normalize(target)}`) : false;
+const isExact = (current: string, target?: string) =>
+  target ? normalize(current) === normalize(target) : false;
 
 export default function ArtistSidebar({ className }: AdminSidebarProps = {}) {
   const pathname = usePathname();
@@ -50,47 +54,38 @@ export default function ArtistSidebar({ className }: AdminSidebarProps = {}) {
       <div className="mb-6 text-xl font-bold">작가 페이지</div>
       <nav className="space-y-4">
         {adminLinks.map((link) => {
-          const hasChildren = Array.isArray(link.children) && link.children.length > 0;
+          const hasChildren = !!link.children?.length;
 
-          const isActiveDirect = link.href
-            ? pathname === link.href || pathname.startsWith(`${link.href}/`)
-            : false;
+          // 상위 단일 링크는 prefix 매칭으로 활성화 (/artist/products/create 등)
+          const activeDirect = link.href ? isPrefix(pathname, link.href) : false;
 
-          const isActiveChild = hasChildren
-            ? link.children!.some(
-                (child) =>
-                  child.href &&
-                  (pathname === child.href || pathname.startsWith(`${child.href}/`)),
-              )
-            : false;
+          // 상위 그룹(주문 관리/정산 내역)은 '아무 자식이나 활성'이면 그룹 활성
+          const activeGroup =
+            hasChildren && link.children!.some((c) => isPrefix(pathname, c.href));
 
-          const isActive = isActiveDirect || isActiveChild;
+          const parentActive = activeDirect || activeGroup;
 
-          const baseClass = clsx(
+          const parentClass = clsx(
             "block rounded-md px-2 py-1 text-base transition-colors",
-            isActive ? "font-extrabold text-primary" : "font-medium text-[var(--color-gray-700)]",
+            parentActive ? "font-extrabold text-primary" : "font-medium text-[var(--color-gray-700)]",
             link.href && "hover:text-primary",
-          );
-
-          const parentContent = link.href ? (
-            <Link key={link.label} href={link.href} className={baseClass}>
-              {link.label}
-            </Link>
-          ) : (
-            <span key={link.label} className={baseClass}>
-              {link.label}
-            </span>
           );
 
           return (
             <div key={link.label} className="space-y-2">
-              {parentContent}
+              {link.href ? (
+                <Link href={link.href} className={parentClass}>
+                  {link.label}
+                </Link>
+              ) : (
+                <span className={parentClass}>{link.label}</span>
+              )}
+
               {hasChildren && (
                 <ul className="space-y-1 pl-4 text-sm">
                   {link.children!.map((child) => {
-                    const childActive =
-                      child.href &&
-                      (pathname === child.href || pathname.startsWith(`${child.href}/`));
+                    // ✅ 자식은 '완전 일치'일 때만 활성화 (주문 내역이 다른 탭에서 켜지는 문제 해결)
+                    const childActive = isExact(pathname, child.href);
                     return child.href ? (
                       <li key={child.href}>
                         <Link
