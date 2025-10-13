@@ -42,6 +42,17 @@ export type FaqList = {
   totalElements: number;
 };
 
+export type FaqDetail = {
+  id: number;
+  question: string;
+  answer: string;
+  category: FaqCategory | string;
+  categoryDisplayName?: string;
+  viewCount: number;
+  createDate?: string;
+  modifyDate?: string;
+};
+
 type ApiEnvelope<T> = {
   resultCode?: string;
   msg?: string;
@@ -168,7 +179,59 @@ export async function fetchFaqList(params: FetchFaqListParams = {}): Promise<Faq
   return resolveFaqList(rawData);
 }
 
+export async function fetchFaqDetail(faqId: string | number): Promise<FaqDetail> {
+  if (faqId == null) {
+    throw new Error('FAQ ID가 필요합니다.');
+  }
+
+  const res = await fetch(`${API_BASE_URL}/api/support/faqs/${faqId}`, {
+    method: 'GET',
+    credentials: 'include',
+    cache: 'no-store',
+  });
+
+  const payload = await parseResponse<FaqDetail>(res, 'FAQ를 불러오지 못했습니다.');
+  const rawData = (payload.data ?? (payload as unknown)) as unknown;
+  if (!rawData || typeof rawData !== 'object') {
+    throw new Error('FAQ 응답이 올바르지 않습니다.');
+  }
+
+  const data = rawData as {
+    id?: unknown;
+    question?: unknown;
+    answer?: unknown;
+    category?: unknown;
+    categoryDisplayName?: unknown;
+    viewCount?: unknown;
+    createDate?: unknown;
+    modifyDate?: unknown;
+  };
+
+  const id = Number(data.id);
+  if (!Number.isFinite(id)) {
+    throw new Error('FAQ ID가 올바르지 않습니다.');
+  }
+
+  return {
+    id,
+    question: typeof data.question === 'string' ? data.question : '',
+    answer: typeof data.answer === 'string' ? data.answer : '',
+    category: typeof data.category === 'string' ? data.category : 'ETC',
+    categoryDisplayName:
+      typeof data.categoryDisplayName === 'string' ? data.categoryDisplayName : undefined,
+    viewCount: Number(data.viewCount ?? 0) || 0,
+    createDate: typeof data.createDate === 'string' ? data.createDate : undefined,
+    modifyDate: typeof data.modifyDate === 'string' ? data.modifyDate : undefined,
+  };
+}
+
 export type CreateFaqPayload = {
+  question: string;
+  answer: string;
+  category: FaqCategory;
+};
+
+export type UpdateFaqPayload = {
   question: string;
   answer: string;
   category: FaqCategory;
@@ -194,4 +257,34 @@ export async function createFaq(payload: CreateFaqPayload, options?: { accessTok
   });
 
   await parseResponse<unknown>(res, 'FAQ를 생성하지 못했습니다.');
+}
+
+export async function updateFaq(
+  faqId: string | number,
+  payload: UpdateFaqPayload,
+  options?: { accessToken?: string },
+): Promise<void> {
+  const res = await fetch(`${API_BASE_URL}/api/support/faqs/${faqId}`, {
+    method: 'PUT',
+    credentials: 'include',
+    headers: {
+      'Content-Type': 'application/json',
+      ...buildAuthHeaders(options?.accessToken),
+    },
+    body: JSON.stringify(payload),
+  });
+
+  await parseResponse<unknown>(res, 'FAQ를 수정하지 못했습니다.');
+}
+
+export async function deleteFaq(faqId: string | number, options?: { accessToken?: string }): Promise<void> {
+  const res = await fetch(`${API_BASE_URL}/api/support/faqs/${faqId}`, {
+    method: 'DELETE',
+    credentials: 'include',
+    headers: {
+      ...buildAuthHeaders(options?.accessToken),
+    },
+  });
+
+  await parseResponse<unknown>(res, 'FAQ를 삭제하지 못했습니다.');
 }
