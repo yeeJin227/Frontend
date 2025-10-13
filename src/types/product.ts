@@ -1,14 +1,80 @@
 
 // 공통
 export type ApiResponse<T> = {
-  resultCode: '200' | string;
+  resultCode: string; 
   msg: string;
-  data: T | null;
+  data: T;
 };
 
 // 상품 목록
 export type DeliveryType = 'FREE' | 'PAID' | 'CONDITIONAL_FREE';
+export type ProductImage = {
+  fileUrl: string;
+  fileType: 'MAIN' | 'THUMBNAIL' | 'ADDITIONAL';
+};
 export type SortKey = 'newest' | 'priceAsc' | 'priceDesc' | 'popular';
+
+export type OptionResponse = {
+  optionName: string;
+  optionStock: number;
+  optionAdditionalPrice: number;
+};
+
+export type AdditionalProductResponse = {
+  name: string;
+  stock: number;
+  price: number;
+};
+
+export type TagResponse = { id: number; tagName?: string; name?: string };
+
+
+export type ProductEssentialInfo = {
+  productModelName: string;
+  certification: boolean;
+  origin: string;
+  material: string;
+  size: string;
+  businessName: string | null;
+  businessNumber: string;
+  ownerName: string;
+  asManager: string;
+  email: string;
+  businessAddress: string;
+  telecomSalesNumber: string;
+};
+
+
+export type ProductDetail = {
+  productUuid: string;
+  artistName: string;
+  brandName: string;
+  name: string;
+  averageRating: number;
+  reviewCount: number;
+  price: number;
+  discountRate: number;
+  discountPrice: number;
+  bundleShippingAvailable: boolean;
+  deliveryCharge: number;
+  deliveryType: DeliveryType;
+  conditionalFreeAmount: number | null;
+  additionalShippingCharge: number;
+  options: OptionResponse[];
+  additionalProducts: AdditionalProductResponse[];
+  images: ProductImage[];
+  essentialInfo: ProductEssentialInfo;
+  stock: number;
+  description: string;
+  minQuantity: number;
+  maxQuantity: number;
+  sellingStatus: string | null;
+  displayStatus: string | null;
+  isPlanned: boolean;
+  isRestock: boolean;
+  tags: TagResponse[];
+};
+
 
 export type ProductListItem = {
   productUuid: string;
@@ -39,8 +105,6 @@ export type ProductListParams = {
   page?: number; // 0-base (UI에서 0,1,2...) — 서버에는 1로 변환되어 나감
   size?: number;
 };
-
-//
 
 
 // 공통 업로드 타입

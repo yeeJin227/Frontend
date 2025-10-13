@@ -1594,7 +1594,7 @@ export default function ProductCreateModal({
               </div>
 
               <p className="inline-block text-xs text-gray-500 bg-primary-20 p-1 my-2">
-                * 파일을 선택하면 자동으로 업로드됩니다. (개별 삭제 시 S3에서도 함께 삭제돼요)
+                * 파일을 선택하면 자동으로 업로드됩니다.
               </p>
             </div>
           )}

@@ -1,6 +1,6 @@
 'use client';
 
-import type { ApiResponse, ProductCreateDto, ProductListData, ProductListItem, ProductListParams, UploadedImageInfo, UploadType } from '@/types/product';
+import type { ApiResponse, ProductCreateDto, ProductDetail, ProductListData, ProductListItem, ProductListParams, UploadedImageInfo, UploadType } from '@/types/product';
 
 // 서버 엔티티 기준 정규화
 function normalizePayload(p: ProductCreateDto): ProductCreateDto {
@@ -502,6 +502,51 @@ export async function fetchProductList(kind: ProductKind, params?: ProductListPa
     return { page: 0, size: params?.size ?? 12, totalElements: 0, totalPages: 0, products: [] };
   }
 }
+
+
+// 상품 상세
+const API_BASE = (process.env.NEXT_PUBLIC_API_BASE_URL ?? '').replace(/\/+$/, '');
+
+export async function fetchProductDetail(
+  productUuid: string,
+  opts?: { accessToken?: string },
+): Promise<ProductDetail> {
+  const url = `${API_BASE}/api/products/${productUuid}`;
+
+  const headers: Record<string, string> = {
+    accept: 'application/json',
+    ...(opts?.accessToken ? { Authorization: `Bearer ${opts.accessToken}` } : {}),
+  };
+
+  const res = await fetch(url, {
+    method: 'GET',
+    headers,
+    credentials: 'include',
+    cache: 'no-store',
+  });
+
+  const text = await res.text().catch(() => '');
+  let json: ApiResponse<ProductDetail | null> | null = null;
+  try {
+    json = text ? (JSON.parse(text) as ApiResponse<ProductDetail | null>) : null;
+  } catch {
+    // noop
+  }
+
+  if (!res.ok) {
+    // 404 등 에러 메시지 우선 노출
+    const msg = (json?.msg || text || `요청 실패 (HTTP ${res.status})`).trim();
+    throw new Error(msg);
+  }
+  if (!json || json.resultCode !== '200' || !json.data) {
+    throw new Error(json?.msg || '상품 정보를 불러올 수 없습니다.');
+  }
+  return json.data;
+}
+
+// 가격 포맷
+export const formatWon = (n: number | null | undefined) =>
+  typeof n === 'number' && Number.isFinite(n) ? n.toLocaleString('ko-KR') + '원' : '-';
 
 
 
