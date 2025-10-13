@@ -17,13 +17,20 @@ export type Kind =
 
 function resolvePath(kind: Kind) {
   switch (kind) {
-    case 'all':       return '/api/products';
-    case 'upcoming':  return '/api/products/upcoming';
-    case 'restock':   return '/api/products/restock';
-    case 'planned':   return '/api/products/planned';
-    case 'onsale':    return '/api/products/onsale';
-    case 'new':       return '/api/products/new';
-    case 'low-stock': return '/api/products/low-stock';
+    case 'all':
+      return '/api/products';
+    case 'upcoming':
+      return '/api/products/upcoming';
+    case 'restock':
+      return '/api/products/restock';
+    case 'planned':
+      return '/api/products/planned';
+    case 'onsale':
+      return '/api/products/onsale';
+    case 'new':
+      return '/api/products/new';
+    case 'low-stock':
+      return '/api/products/low-stock';
   }
 }
 
@@ -41,7 +48,8 @@ function buildQuery(kind: Kind, params?: ProductListParams) {
   set('sort', params.sort ?? 'newest');
   set('page', (params.page ?? 0) + 1); // 서버는 1부터
   set('size', params.size ?? 12);
-  if (params.tagIds?.length) params.tagIds.forEach((id) => sp.append('tagIds', String(id)));
+  if (params.tagIds?.length)
+    params.tagIds.forEach((id) => sp.append('tagIds', String(id)));
   const qs = sp.toString();
   return qs ? `?${qs}` : '';
 }
@@ -65,20 +73,27 @@ function isProductListData(u: unknown): u is ProductListData {
   );
 }
 
-function isApiResponseOfProductListData(u: unknown): u is ApiResponse<ProductListData> {
+function isApiResponseOfProductListData(
+  u: unknown,
+): u is ApiResponse<ProductListData> {
   if (typeof u !== 'object' || u === null) return false;
   const o = u as { data?: unknown };
   return isProductListData(o.data);
 }
 
-function isArrayEnvelope(u: unknown): u is { code?: string; message?: string; data: ProductListItem[] } {
+function isArrayEnvelope(
+  u: unknown,
+): u is { code?: string; message?: string; data: ProductListItem[] } {
   if (typeof u !== 'object' || u === null) return false;
   const o = u as { data?: unknown };
   return Array.isArray(o.data);
 }
 
-// 서로 다른 응답 스키마 -> 페이지형으로 통일 
-function normalizeToPaged(input: unknown, fallbackSize: number): ProductListData {
+// 서로 다른 응답 스키마 -> 페이지형으로 통일
+function normalizeToPaged(
+  input: unknown,
+  fallbackSize: number,
+): ProductListData {
   const empty: ProductListData = {
     page: 0,
     size: fallbackSize,
@@ -109,10 +124,8 @@ function normalizeToPaged(input: unknown, fallbackSize: number): ProductListData
   return empty;
 }
 
-
-
 async function fetchProducts(kind: Kind, params?: ProductListParams) {
-  const url = `${process.env.NEXT_PUBLIC_API_BASE_URL}${resolvePath(kind)}${buildQuery(kind, params)}`;
+  const url = `${resolvePath(kind)}${buildQuery(kind, params)}`;
   try {
     const res = await fetch(url, {
       method: 'GET',
@@ -123,7 +136,9 @@ async function fetchProducts(kind: Kind, params?: ProductListParams) {
 
     const raw = await res.text();
     let parsed: unknown = null;
-    try { parsed = raw ? JSON.parse(raw) : null; } catch {}
+    try {
+      parsed = raw ? JSON.parse(raw) : null;
+    } catch {}
 
     if (res.status === 404) return normalizeToPaged(parsed, params?.size ?? 12);
     if (!res.ok) {
@@ -133,7 +148,13 @@ async function fetchProducts(kind: Kind, params?: ProductListParams) {
     return normalizeToPaged(parsed, params?.size ?? 12);
   } catch {
     console.error('[ProductSection] EXCEPTION');
-    return { page: 0, size: params?.size ?? 12, totalElements: 0, totalPages: 0, products: [] };
+    return {
+      page: 0,
+      size: params?.size ?? 12,
+      totalElements: 0,
+      totalPages: 0,
+      products: [],
+    };
   }
 }
 
@@ -154,9 +175,11 @@ export default async function ProductSectionServer({
   return (
     <section className="w-full pt-8">
       <div className="mx-auto w-full max-w-5xl px-4 sm:px-0">
-        <div className="mx-auto mb-7 flex items-center"> 
-          <h3 className="pr-5 text-[20px] font-bold">{title}</h3> 
-          {description && <span className="text-[16px] text-gray-400">{description}</span>}
+        <div className="mx-auto mb-7 flex items-center">
+          <h3 className="pr-5 text-[20px] font-bold">{title}</h3>
+          {description && (
+            <span className="text-[16px] text-gray-400">{description}</span>
+          )}
         </div>
 
         {/* 아무것도 없을 때 */}
@@ -174,25 +197,25 @@ export default async function ProductSectionServer({
 
 /* kind 프리셋 */
 export const NewProductsSection = async (
-  props: Omit<Parameters<typeof ProductSectionServer>[0], 'kind'>
+  props: Omit<Parameters<typeof ProductSectionServer>[0], 'kind'>,
 ) => <ProductSectionServer kind="new" {...props} />;
 
 export const OnSaleProductsSection = async (
-  props: Omit<Parameters<typeof ProductSectionServer>[0], 'kind'>
+  props: Omit<Parameters<typeof ProductSectionServer>[0], 'kind'>,
 ) => <ProductSectionServer kind="onsale" {...props} />;
 
 export const RestockProductsSection = async (
-  props: Omit<Parameters<typeof ProductSectionServer>[0], 'kind'>
+  props: Omit<Parameters<typeof ProductSectionServer>[0], 'kind'>,
 ) => <ProductSectionServer kind="restock" {...props} />;
 
 export const LowStockProductsSection = async (
-  props: Omit<Parameters<typeof ProductSectionServer>[0], 'kind'>
+  props: Omit<Parameters<typeof ProductSectionServer>[0], 'kind'>,
 ) => <ProductSectionServer kind="low-stock" {...props} />;
 
 export const PlannedProductsSection = async (
-  props: Omit<Parameters<typeof ProductSectionServer>[0], 'kind'>
+  props: Omit<Parameters<typeof ProductSectionServer>[0], 'kind'>,
 ) => <ProductSectionServer kind="planned" {...props} />;
 
 export const UpcomingProductsSection = async (
-  props: Omit<Parameters<typeof ProductSectionServer>[0], 'kind'>
+  props: Omit<Parameters<typeof ProductSectionServer>[0], 'kind'>,
 ) => <ProductSectionServer kind="upcoming" {...props} />;

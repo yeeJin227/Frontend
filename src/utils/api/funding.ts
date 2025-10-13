@@ -5,7 +5,9 @@ import {
   FundingListResponse,
 } from '@/types/funding';
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || '';
+const API_BASE_URL = (
+  process.env.NEXT_PUBLIC_API_BASE_URL ?? 'http://localhost:8080'
+).replace(/\/+$/, '');
 
 export const fetchFundingList = async (
   params: FundingListProps,

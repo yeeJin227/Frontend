@@ -6,7 +6,9 @@ import ProductTabs from './components/ProductTabs';
 import AuthorInfo from './components/AuthorInfo';
 import { FundingDetailResponse } from '@/types/funding';
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || '';
+const API_BASE_URL = (
+  process.env.NEXT_PUBLIC_API_BASE_URL ?? 'http://localhost:8080'
+).replace(/\/+$/, '');
 
 async function getFundingDetail(id: string) {
   try {
