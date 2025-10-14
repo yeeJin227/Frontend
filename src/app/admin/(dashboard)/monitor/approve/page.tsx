@@ -14,7 +14,9 @@ import { useToast } from '@/components/ToastProvider';
 import {
   approveFundingApplication,
   fetchFundingApprovalList,
+  fetchFundingApprovalDetail,
   type FundingApprovalList,
+  type FundingApprovalDetail,
 } from '@/services/adminFundingApproval';
 import { useAuthStore } from '@/stores/authStore';
 import { useAuthGuard } from '@/hooks/useAuthGuard';
@@ -57,6 +59,9 @@ export default function ApproveFundingPage() {
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedApplicant, setSelectedApplicant] = useState<FundingApplicant | null>(null);
+  const [selectedDetail, setSelectedDetail] = useState<FundingApprovalDetail | null>(null);
+  const [detailLoading, setDetailLoading] = useState(false);
+  const [detailError, setDetailError] = useState<string | null>(null);
   const [applicantList, setApplicantList] = useState<FundingApplicant[]>([]);
   const [loadingList, setLoadingList] = useState(false);
   const [listError, setListError] = useState<string | null>(null);
@@ -92,6 +97,43 @@ export default function ApproveFundingPage() {
       void hydrate();
     }
   }, [hydrate, isHydrated]);
+
+  useEffect(() => {
+    if (!selectedApplicant) {
+      setSelectedDetail(null);
+      setDetailError(null);
+      setDetailLoading(false);
+      return;
+    }
+
+    if (!accessToken) {
+      setDetailError('인증 정보가 없습니다. 다시 로그인해 주세요.');
+      setDetailLoading(false);
+      return;
+    }
+
+    let active = true;
+    setDetailLoading(true);
+    setDetailError(null);
+    fetchFundingApprovalDetail(selectedApplicant.applicationId, { accessToken })
+      .then((detail) => {
+        if (!active) return;
+        setSelectedDetail(detail);
+      })
+      .catch((error) => {
+        if (!active) return;
+        const message = error instanceof Error ? error.message : '상세 정보를 불러오지 못했습니다.';
+        setDetailError(message);
+        setSelectedDetail(null);
+      })
+      .finally(() => {
+        if (active) setDetailLoading(false);
+      });
+
+    return () => {
+      active = false;
+    };
+  }, [accessToken, selectedApplicant]);
 
   useEffect(() => {
     if (!isHydrated) return;
@@ -187,6 +229,9 @@ export default function ApproveFundingPage() {
         setApplicantList((prev) => prev.filter((applicant) => !confirmed.has(applicant.id)));
         setSelectedIds([]);
         setSelectedApplicant((current) => (current && confirmed.has(current.id) ? null : current));
+        setSelectedDetail((current) =>
+          current && confirmed.has(String(current.fundingId)) ? null : current,
+        );
       } catch (error) {
         const message = error instanceof Error ? error.message : '펀딩 승인에 실패했습니다.';
         toast.error(message);
@@ -331,72 +376,94 @@ export default function ApproveFundingPage() {
             </div>
           }
         >
-          <div className="flex flex-col gap-8">
-            <div className="flex items-center gap-6">
-              <DefaultProfile className="h-24 w-24" aria-hidden />
-              <div>
-                <p className="text-xl font-semibold text-[var(--color-gray-900)]">
-                  {selectedApplicant.name}
-                </p>
-                <p className="mt-2 text-sm text-[var(--color-gray-600)]">
-                  ID : {selectedApplicant.id}
-                </p>
-              </div>
-            </div>
-
-            <dl className="divide-y divide-[var(--color-gray-100)] border-y border-[var(--color-gray-100)]">
-              {[
-                { label: '이메일', value: selectedApplicant.email },
-                { label: '전화번호', value: selectedApplicant.phone },
-                {
-                  label: '사업자등록번호',
-                  value: selectedApplicant.businessNumber,
-                  link: selectedApplicant.businessDocument
-                    ? {
-                        label: '사업자등록증 사본',
-                        href: selectedApplicant.businessDocument,
-                      }
-                    : undefined,
-                },
-                {
-                  label: '통신판매업 신고번호',
-                  value: selectedApplicant.commerceNumber,
-                  link: selectedApplicant.commerceDocument
-                    ? {
-                        label: '신고증 사본',
-                        href: selectedApplicant.commerceDocument,
-                      }
-                    : undefined,
-                },
-                {
-                  label: '펀딩 내용',
-                  value: selectedApplicant.fundingSummary,
-                },
-              ].map((item) => (
-                <div
-                  key={item.label}
-                  className="grid grid-cols-[140px_1fr] items-center gap-4 py-4 text-sm"
-                >
-                  <dt className="font-semibold text-[var(--color-gray-800)]">
-                    {item.label}
-                  </dt>
-                  <dd className="flex flex-wrap items-center gap-3 text-[var(--color-gray-700)]">
-                    {item.value ? <span>{item.value}</span> : <span>-</span>}
-                    {item.link ? (
-                      <Link
-                        href={item.link.href}
-                        className="text-primary underline"
-                        target="_blank"
-                        rel="noreferrer"
-                      >
-                        {item.link.label}
-                      </Link>
-                    ) : null}
-                  </dd>
+          {detailLoading ? (
+            <p className="py-8 text-center text-sm text-[var(--color-gray-600)]">
+              상세 정보를 불러오는 중입니다…
+            </p>
+          ) : detailError ? (
+            <p className="py-8 text-center text-sm text-rose-600">{detailError}</p>
+          ) : (
+            <div className="flex flex-col gap-8">
+              <div className="flex items-center gap-6">
+                <DefaultProfile className="h-24 w-24" aria-hidden />
+                <div>
+                  <p className="text-xl font-semibold text-[var(--color-gray-900)]">
+                    {selectedDetail?.artist?.name ?? selectedApplicant.name}
+                  </p>
+                  <p className="mt-2 text-sm text-[var(--color-gray-600)]">
+                    ID : {selectedDetail?.artist?.id ?? selectedApplicant.id}
+                  </p>
                 </div>
-              ))}
-            </dl>
-          </div>
+              </div>
+
+              <dl className="divide-y divide-[var(--color-gray-100)] border-y border-[var(--color-gray-100)]">
+                {[
+                  {
+                    label: '이메일',
+                    value: selectedDetail?.artist?.email ?? selectedApplicant.email,
+                  },
+                  {
+                    label: '전화번호',
+                    value: selectedDetail?.artist?.phone ?? selectedApplicant.phone,
+                  },
+                  {
+                    label: '사업자등록번호',
+                    value: selectedDetail?.business?.businessNumber ?? selectedApplicant.businessNumber,
+                    link:
+                      selectedDetail?.business?.businessDocument ?? selectedApplicant.businessDocument
+                        ? {
+                            label: '사업자등록증 사본',
+                            href:
+                              selectedDetail?.business?.businessDocument ??
+                              selectedApplicant.businessDocument!,
+                          }
+                        : undefined,
+                  },
+                  {
+                    label: '통신판매업 신고번호',
+                    value:
+                      selectedDetail?.business?.telecomSalesNumber ??
+                      selectedApplicant.commerceNumber,
+                    link:
+                      selectedDetail?.business?.commerceDocument ?? selectedApplicant.commerceDocument
+                        ? {
+                            label: '신고증 사본',
+                            href:
+                              selectedDetail?.business?.commerceDocument ??
+                              selectedApplicant.commerceDocument!,
+                          }
+                        : undefined,
+                  },
+                  {
+                    label: '펀딩 내용',
+                    value: selectedDetail?.summary ?? selectedApplicant.fundingSummary,
+                  },
+                ].map((item) => (
+                  <div
+                    key={item.label}
+                    className="grid grid-cols-[140px_1fr] items-center gap-4 py-4 text-sm"
+                  >
+                    <dt className="font-semibold text-[var(--color-gray-800)]">
+                      {item.label}
+                    </dt>
+                    <dd className="flex flex-wrap items-center gap-3 text-[var(--color-gray-700)]">
+                      {item.value ? <span>{item.value}</span> : <span>-</span>}
+                      {item.link ? (
+                        <Link
+                          href={item.link.href}
+                          className="text-primary underline"
+                          target="_blank"
+                          rel="noreferrer"
+                        >
+                          {item.link.label}
+                        </Link>
+                      ) : null}
+                    </dd>
+                  </div>
+                ))}
+              </dl>
+            </div>
+          )}
         </Modal>
       ) : null}
     </>
