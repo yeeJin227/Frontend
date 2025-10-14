@@ -8,10 +8,15 @@ type Props = {
   onClose: () => void;
 };
 
-export default function FundingCreateModal({ open, mode = 'create', onClose }: Props) {
-  if (!open) return null;
+export default function FundingCreateModal(props: Props) {
+  const { open } = props;
+  if (!open) return null; // 여기서는 Hook을 쓰지 않으므로 안전
 
-  // --- 상태 관리 ---
+  return <FundingCreateModalInner {...props} />;
+}
+
+function FundingCreateModalInner({ mode = 'create', onClose }: Omit<Props, 'open'>) {
+  // --- 상태 관리 (항상 동일한 순서로 호출) ---
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [categoryId, setCategoryId] = useState('');
@@ -25,7 +30,10 @@ export default function FundingCreateModal({ open, mode = 'create', onClose }: P
 
   // 이미지 미리보기
   useEffect(() => {
-    if (!imageFile) return setImagePreview(null);
+    if (!imageFile) {
+      setImagePreview(null);
+      return;
+    }
     const url = URL.createObjectURL(imageFile);
     setImagePreview(url);
     return () => URL.revokeObjectURL(url);
