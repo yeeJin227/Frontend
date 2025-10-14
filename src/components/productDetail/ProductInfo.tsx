@@ -1,8 +1,8 @@
 
 'use client';
 
-import Image from 'next/image';
 import type { ProductDetail } from '@/types/product';
+import { useMemo } from 'react';
 
 type Spec = { label: string; value: string };
 
@@ -11,14 +11,14 @@ function asText(v?: unknown, fallback = '-') {
 }
 
 export default function ProductInfo({ product }: { product?: ProductDetail }) {
-  // 상품 이미지(최대 3장) : MAIN → ADDITIONAL → THUMBNAIL 
-  const images = (() => {
-    const list = product?.images ?? [];
-    const main = list.filter((i) => i.fileType === 'MAIN');
-    const add = list.filter((i) => i.fileType === 'ADDITIONAL');
-    const thumb = list.filter((i) => i.fileType === 'THUMBNAIL');
-    return [...main, ...add, ...thumb].slice(0, 3);
-  })();
+
+  // 스크립트 제거
+function sanitizeHtml(html: string) {
+  return html
+    .replace(/<script[\s\S]*?>[\s\S]*?<\/script>/gi, '')
+    .replace(/\son\w+="[^"]*"/gi, '')
+    .replace(/\son\w+='[^']*'/gi, '');
+}
 
   // 필수 정보
   const e = product?.essentialInfo;
@@ -37,29 +37,42 @@ export default function ProductInfo({ product }: { product?: ProductDetail }) {
     { label: '통신판매업신고번호', value: asText(e?.telecomSalesNumber) },
   ];
 
+   // 에디터 HTML 
+  const descriptionHtml = useMemo(() => {
+    const raw = product?.description?.trim() ?? '';
+    return raw ? sanitizeHtml(raw) : '<p>상품 상세 설명이 없습니다.</p>';
+  }, [product?.description]);
+
   return (
     <section>
       <h3 className="font-semibold py-12">상품 정보</h3>
 
-      {/* 상세 이미지 영역 */}
-      <div className="flex flex-col justify-center items-center gap-10">
-        {images.length > 0 ? (
-          images.map((img, idx) => (
-            <Image
-              key={`${img.fileUrl}-${idx}`}
-              src={img.fileUrl}
-              alt={`상세 이미지 ${idx + 1}`}
-              width={600}
-              height={360}
-              className="w-[600px] h-[360px] object-cover"
-            />
-          ))
-        ) : (
-          <>
-            <p>상품 상세 이미지가 없습니다.</p>
-          </>
-        )}
-      </div>
+      {/* 에디터 내용 */}
+      <div
+        className="product-content mx-auto w-full max-w-[800px] px-2 md:px-0"
+        dangerouslySetInnerHTML={{ __html: descriptionHtml }}
+      />
+      <style jsx>{`
+        .product-content img {
+          display: block;
+          max-width: 100%;
+          height: auto;
+          margin: 16px auto;
+          border-radius: 8px;
+        }
+        .product-content p { margin: 10px 0; line-height: 1.7; }
+        .product-content h1, .product-content h2, .product-content h3 {
+          margin-top: 20px; margin-bottom: 8px; font-weight: 700;
+        }
+        .product-content ul, .product-content ol { padding-left: 20px; }
+        .product-content table { width: 100%; border-collapse: collapse; margin: 16px 0; }
+        .product-content table th, .product-content table td {
+          border: 1px solid #e5e7eb; padding: 8px;
+        }
+        .product-content iframe, .product-content video {
+          max-width: 100%;
+        }
+      `}</style>
 
       <div className="flex items-center pt-12 pb-3">
         <h4 className="font-semibold mr-6">상품 필수 정보</h4>

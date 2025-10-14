@@ -1,4 +1,4 @@
-// app/products/[uuid]/page.tsx
+
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
@@ -9,7 +9,7 @@ import ProductOptions from '@/components/productDetail/ProductOptions';
 import Image from 'next/image';
 import Star from '@/assets/icon/star.svg';
 
-import { fetchProductDetail } from '@/services/products'; // ← 필요 시 경로 조정
+import { fetchProductDetail } from '@/services/products';
 import type { ProductDetail } from '@/types/product';
 
 function formatWon(n?: number | null) {
@@ -23,7 +23,7 @@ export default function Page() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  // 데이터 로드
+
   useEffect(() => {
     let alive = true;
     (async () => {
@@ -118,12 +118,12 @@ export default function Page() {
           )}
         </section>
 
-        {/* 우측 정보 영역 (UI 그대로, 값만 치환) */}
+        {/* 우측 정보 영역 */}
         <section>
           <div className="text-gray-500 font-semibold">
             {loading || error || !data
               ? '작가명(브랜드명)'
-              : `${data.artistName}${data.brandName ? ` (${data.brandName})` : ''}`}
+              : data.brandName}
           </div>
 
           <div className="flex items-center">
@@ -131,7 +131,6 @@ export default function Page() {
               {loading || error || !data ? '상품명' : data.name}
             </h1>
 
-            {/* 별 아이콘 5개 고정, 숫자만 실데이터 출력 */}
             <div className="flex gap-1 items-center">
               <Star />
               <Star />
@@ -190,7 +189,17 @@ export default function Page() {
         </section>
       </main>
 
-      <InfoTab product={data ?? undefined} />
+      <InfoTab
+  product={data ?? undefined}
+  productId={
+    typeof data?.productId === 'number'
+      ? data.productId
+      : data?.productId != null
+        ? Number(data.productId)
+        : undefined
+  }
+/>
+
     </div>
   );
 }

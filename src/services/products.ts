@@ -20,7 +20,7 @@ function normalizePayload(p: ProductCreateDto): ProductCreateDto {
   };
 }
 
-// 공용 목록 읽기용 kind (프리셋 엔드포인트 대응)
+// 공용 목록 읽기용 kind 
 export type ProductKind =
   | 'all'
   | 'upcoming'
@@ -86,7 +86,7 @@ export async function uploadDescriptionImages(files: File[]): Promise<string[]> 
     }
   );
 
-  // 에러 처리
+
   if (!res.ok) {
     let msg = '설명 이미지 업로드 실패';
     try {
@@ -94,7 +94,6 @@ export async function uploadDescriptionImages(files: File[]): Promise<string[]> 
       if (j?.msg) msg = j.msg;
     } catch {}
     if (res.status === 401) {
-      // 인증 실패
       throw new Error('로그인이 필요합니다.');
     }
     throw new Error(msg);
@@ -295,8 +294,8 @@ export async function getProducts(params: ProductListParams): Promise<ProductLis
 export type ArtistProductListParams = {
   page?: number;                 // 0-based
   size?: number;                 // 기본 10
-  keyword?: string;              // 검색어
-  selling?: boolean;             // 판매중만 필터
+  keyword?: string;  
+  selling?: boolean; 
   sort?: 'createDate' | 'price' | 'name';
   order?: 'ASC' | 'DESC';
 };
@@ -310,8 +309,8 @@ export type ArtistProduct = {
   artist?: { id: string; name: string };
   imageUrl?: string;
   sellingStatus?: 'SELLING' | 'STOPPED' | 'SOLD_OUT' | string;
-  registeredDate?: string; // ISO
-  addedAt?: string;        // ISO
+  registeredDate?: string; 
+  addedAt?: string;
   productPageUrl?: string;
   permissions?: { canUnwish?: boolean };
 };
@@ -379,7 +378,7 @@ async function safeParseJson<T>(res: Response): Promise<T | null> {
   }
 }
 
-// /api/products  전용 쿼리스트링 — UI 0-base → 서버 1-base 변환
+// /api/products  UI 0-base → 서버 1-base
 function buildAllListQuery(params?: ProductListParams) {
   if (!params) return '';
   const sp = new URLSearchParams();
@@ -403,7 +402,7 @@ function buildAllListQuery(params?: ProductListParams) {
   return qs ? `?${qs}` : '';
 }
 
-// 서버 응답(여러 스키마)을 UI 기준 ProductListData로 정규화 
+// 서버 응답(여러 스키마)을 UI 기준 ProductListData로
 function normalizeProductsPaged(input: unknown, fallbackSize: number): ProductListData {
   const empty: ProductListData = {
     page: 0,
@@ -414,7 +413,7 @@ function normalizeProductsPaged(input: unknown, fallbackSize: number): ProductLi
   };
   if (input == null) return empty;
 
-  // 케이스 A) 정식 목록 API: ApiResponse<ProductListResponse>
+  // ApiResponse<ProductListResponse>
   // ProductListResponse: { page(1-base), size, totalElements, totalPages, products: [...] }
   const asApi = input as ApiResponse<{
     page: number;       // 1-base
@@ -455,7 +454,7 @@ function normalizeProductsPaged(input: unknown, fallbackSize: number): ProductLi
     }
   }
 
-  // 케이스 B) 프리셋 API(/new, /onsale ...): { code?, message?, data: ProductListItem[] }
+  // 프리셋 API(/new, /onsale ...): { code?, message?, data: ProductListItem[] }
   const asArrayEnvelope = input as { data?: unknown };
   if (asArrayEnvelope && Array.isArray(asArrayEnvelope.data)) {
     const list = asArrayEnvelope.data as ProductListItem[];
@@ -472,7 +471,7 @@ function normalizeProductsPaged(input: unknown, fallbackSize: number): ProductLi
   return empty;
 }
 
-// 상품 목록  (UI 0-base page)
+// 상품 목록  (UI 0-base)
 export async function fetchProductList(kind: ProductKind, params?: ProductListParams): Promise<ProductListData> {
   const base = (process.env.NEXT_PUBLIC_API_BASE_URL ?? '') + resolveProductPath(kind);
   const url = kind === 'all' ? base + buildAllListQuery(params) : base;
@@ -530,19 +529,42 @@ export async function fetchProductDetail(
   try {
     json = text ? (JSON.parse(text) as ApiResponse<ProductDetail | null>) : null;
   } catch {
-    // noop
   }
 
   if (!res.ok) {
-    // 404 등 에러 메시지 우선 노출
     const msg = (json?.msg || text || `요청 실패 (HTTP ${res.status})`).trim();
     throw new Error(msg);
   }
   if (!json || json.resultCode !== '200' || !json.data) {
-    throw new Error(json?.msg || '상품 정보를 불러올 수 없습니다.');
-  }
-  return json.data;
+  throw new Error(json?.msg || '상품 정보를 불러올 수 없습니다.');
 }
+
+// 1) unknown → object로 안전하게 좁히기 (임시)
+const rawUnknown: unknown = json.data;
+const rawObj: Record<string, unknown> =
+  typeof rawUnknown === 'object' && rawUnknown !== null ? (rawUnknown as Record<string, unknown>) : {};
+
+// 2) productId 추출 (임시)
+const pid =
+  typeof rawObj.productId === 'number'
+    ? rawObj.productId
+    : typeof rawObj.id === 'number'
+      ? rawObj.id
+      : undefined;
+
+if (pid == null) {
+  console.warn('[fetchProductDetail] productId 누락: 리뷰 API 사용 불가');
+}
+
+// 3) 객체로 좁힌 것만 펼치기 (임시)
+const detail: ProductDetail = {
+  ...(rawObj as Partial<ProductDetail>),
+  productId: typeof pid === 'number' ? pid : 0,
+} as ProductDetail;
+
+return detail;
+}
+
 
 // 가격 포맷
 export const formatWon = (n: number | null | undefined) =>

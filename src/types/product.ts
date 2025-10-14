@@ -46,6 +46,7 @@ export type ProductEssentialInfo = {
 
 
 export type ProductDetail = {
+  productId: number; // 리뷰 api (임시)
   productUuid: string;
   artistName: string;
   brandName: string;

@@ -47,7 +47,7 @@ export default function PhotoReviewCard({
               ))}
             </div>
           </div>
-          <button className="cursor-pointer"><Heart /></button>
+          <button data-like className="cursor-pointer"><Heart /></button>
       </div>
 
       <div className="flex flex-wrap gap-2 text-sm">
