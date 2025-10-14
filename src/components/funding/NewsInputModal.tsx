@@ -8,6 +8,9 @@ interface NewsCreateModalProps {
   fundingId: number;
 }
 
+const TITLE_MAX_LENGTH = 40;
+const CONTENT_MAX_LENGTH = 300;
+
 const NewsCreateModal: React.FC<NewsCreateModalProps> = ({
   isOpen,
   onClose,
@@ -50,6 +53,15 @@ const NewsCreateModal: React.FC<NewsCreateModalProps> = ({
   const handleSubmit = async () => {
     if (!title.trim() || !content.trim()) return;
 
+    if (title.length > TITLE_MAX_LENGTH) {
+      alert(`제목은 ${TITLE_MAX_LENGTH}자를 초과할 수 없습니다.`);
+      return;
+    }
+
+    if (content.length > CONTENT_MAX_LENGTH) {
+      alert(`내용은 ${CONTENT_MAX_LENGTH}자를 초과할 수 없습니다.`);
+      return;
+    }
     setIsSubmitting(true);
 
     try {

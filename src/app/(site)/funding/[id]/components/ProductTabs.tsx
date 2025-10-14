@@ -9,6 +9,8 @@ import { FundingNews, FundingCommunity } from '@/types/funding';
 
 interface ProductTabsProps {
   fundingId: number;
+  authorId: number;
+  currentUserId?: number;
   description: string;
   news: FundingNews[];
   communities: FundingCommunity[];
@@ -16,6 +18,8 @@ interface ProductTabsProps {
 
 export default function ProductTabs({
   fundingId,
+  authorId,
+  currentUserId,
   description,
   news,
   communities,
@@ -70,11 +74,21 @@ export default function ProductTabs({
         )}
 
         {selectedTab === 'details' && (
-          <NewsSection fundingId={fundingId} news={news} />
+          <NewsSection
+            fundingId={fundingId}
+            authorId={authorId}
+            currentUserId={currentUserId}
+            news={news}
+          />
         )}
 
         {selectedTab === 'shipping' && (
-          <CommunitySection fundingId={fundingId} communities={communities} />
+          <CommunitySection
+            fundingId={fundingId}
+            communities={communities}
+            authorId={authorId}
+            currentUserId={currentUserId}
+          />
         )}
       </div>
     </div>

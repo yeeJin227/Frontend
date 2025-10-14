@@ -70,8 +70,6 @@ export const createNewFunding = async (
   fundingData: CreateFundingRequest,
 ): Promise<CreateFundingResponse> => {
   try {
-    console.log('📤 보내는 데이터:', JSON.stringify(fundingData, null, 2));
-
     const url = `${API_BASE_URL}/api/fundings`;
 
     const response = await fetch(url, {
@@ -82,8 +80,6 @@ export const createNewFunding = async (
       credentials: 'include', // ⭐ 쿠키 포함 (필수)
       body: JSON.stringify(fundingData),
     });
-
-    console.log('📥 응답 상태:', response.status);
 
     if (!response.ok) {
       // ⭐ 서버의 에러 메시지 확인
@@ -98,7 +94,6 @@ export const createNewFunding = async (
     }
 
     const data: CreateFundingResponse = await response.json();
-    console.log('✅ 성공 응답:', data);
 
     return data;
   } catch (error) {

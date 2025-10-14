@@ -49,11 +49,7 @@ export default async function FundingPage({ searchParams }: FundingPageProps) {
   const resolvedSearchParams = await searchParams;
   const params = parseSearchParams(resolvedSearchParams);
 
-  console.log('params : ', params);
-
-  // ⭐ 전체 응답 데이터 받기
   const fundingResponse = await fetchFundingList(params);
-  console.log('fundingResponse : ', fundingResponse);
 
   const popularFundings = await getPopularFundings();
 

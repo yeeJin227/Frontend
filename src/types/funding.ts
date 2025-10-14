@@ -99,9 +99,10 @@ export interface CreateFundingRequest {
   categoryId: number;
   imageUrl: string;
   targetAmount: number;
+  price: number;
+  stock: number;
   startDate: string; // ISO 8601 형식
   endDate: string; // ISO 8601 형식
-  options: CreateFundingOptionRequest[];
 }
 
 // 펀딩 생성 응답 데이터
@@ -148,14 +149,6 @@ export interface FundingNews {
   createDate: string;
 }
 
-export interface FundingCommunity {
-  id: number;
-  writerName: string;
-  profileImageUrl: string;
-  content: string;
-  createDate: string;
-}
-
 export interface FundingDetail {
   id: number;
   title: string;
@@ -163,6 +156,9 @@ export interface FundingDetail {
   imageUrl: string;
   categoryName: string;
   targetAmount: number;
+  price: number;
+  stock: number;
+  soldCount: number;
   currentAmount: number;
   participants: number;
   startDate: string;
@@ -171,7 +167,6 @@ export interface FundingDetail {
   progress: number;
   status: FundingStatus;
   author: FundingDetailAuthor;
-  options: FundingOption[];
   news: FundingNews[];
   communities: FundingCommunity[];
 }
@@ -180,4 +175,13 @@ export interface FundingDetailResponse {
   resultCode: string;
   msg: string;
   data: FundingDetail;
+}
+
+export interface FundingCommunity {
+  id: number;
+  writerId?: number;
+  writerName: string;
+  profileImageUrl: string;
+  content: string;
+  createDate: string;
 }

@@ -4,22 +4,62 @@
 import { useState } from 'react';
 import Image from 'next/image';
 import NewsInputModal from '@/components/funding/NewsInputModal';
-import FullThumbsUp from '@/assets/icon/thumbs_up.svg';
 import { FundingNews } from '@/types/funding';
 
 interface NewsSectionProps {
   fundingId: number;
+  authorId: number; // 추가: 펀딩 작가 ID
+  currentUserId?: number; // 추가: 현재 로그인한 사용자 ID
   news: FundingNews[];
 }
 
-export default function NewsSection({ fundingId, news }: NewsSectionProps) {
+export default function NewsSection({
+  fundingId,
+  authorId,
+  currentUserId,
+  news,
+}: NewsSectionProps) {
   const [expandedNews, setExpandedNews] = useState<Record<number, boolean>>({});
+  const [isDeleting, setIsDeleting] = useState<number | null>(null);
+
+  // 현재 사용자가 작가인지 확인
+  const isAuthor = currentUserId === authorId;
 
   const toggleNews = (newsId: number) => {
     setExpandedNews((prev) => ({
       ...prev,
       [newsId]: !prev[newsId],
     }));
+  };
+
+  const handleDeleteNews = async (newsId: number) => {
+    if (!confirm('이 소식을 삭제하시겠습니까?')) {
+      return;
+    }
+
+    setIsDeleting(newsId);
+
+    try {
+      const response = await fetch(
+        `${process.env.NEXT_PUBLIC_API_BASE_URL}/api/fundings/${fundingId}/news/${newsId}`,
+        {
+          method: 'DELETE',
+          credentials: 'include',
+        },
+      );
+
+      if (!response.ok) {
+        throw new Error('삭제 실패');
+      }
+
+      alert('소식이 삭제되었습니다.');
+      window.location.reload(); // 또는 revalidate
+    } catch (error) {
+      console.error('삭제 실패:', error);
+      alert('소식 삭제에 실패했습니다.');
+    } finally {
+      setIsDeleting(null);
+    }
   };
 
   const getTruncatedContent = (content: string, maxLength: number = 100) => {
@@ -38,9 +78,12 @@ export default function NewsSection({ fundingId, news }: NewsSectionProps) {
 
   return (
     <div className="bg-white rounded-lg shadow-sm flex flex-col">
-      <div className="ml-auto">
-        <NewsInputModal fundingId={fundingId} />
-      </div>
+      {/* 작가만 "새 소식 작성하기" 버튼 보임 */}
+      {isAuthor && (
+        <div className="ml-auto">
+          <NewsInputModal fundingId={fundingId} />
+        </div>
+      )}
 
       <div className="space-y-6 p-6">
         {news.length === 0 ? (
@@ -66,6 +109,17 @@ export default function NewsSection({ fundingId, news }: NewsSectionProps) {
                       {formatDate(item.createDate)} | {item.actorNickname}
                     </div>
                   </div>
+
+                  {/* 작가만 삭제 버튼 보임 */}
+                  {isAuthor && (
+                    <button
+                      onClick={() => handleDeleteNews(item.id)}
+                      disabled={isDeleting === item.id}
+                      className="text-red-500 hover:text-red-700 text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      {isDeleting === item.id ? '삭제 중...' : '삭제'}
+                    </button>
+                  )}
                 </div>
 
                 <p className="text-gray-700 mb-4 leading-relaxed break-words whitespace-pre-wrap">
@@ -84,10 +138,6 @@ export default function NewsSection({ fundingId, news }: NewsSectionProps) {
                 )}
 
                 <div className="flex items-center">
-                  <button className="flex items-center space-x-2 text-primary hover:text-primary-60 w-9 h-9">
-                    <FullThumbsUp className="w-5 h-5" />
-                    <span className="text-sm font-semibold">0</span>
-                  </button>
                   {item.content.length > 100 && (
                     <button
                       onClick={() => toggleNews(item.id)}
