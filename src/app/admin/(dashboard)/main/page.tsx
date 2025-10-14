@@ -12,6 +12,7 @@ import {
   type AlertEntry,
 } from '@/services/dashboard';
 import { useAuthStore } from '@/stores/authStore';
+import { useAuthGuard } from '@/hooks/useAuthGuard';
 
 type TrendConfig = {
   title: string;
@@ -88,6 +89,7 @@ function buildCategoryDistribution(payload?: AdminOverviewPayload | null) {
 }
 
 function Page() {
+  useAuthGuard({ allowedRoles: ['ADMIN'], redirectTo: '/admin/login' });
   const [data, setData] = useState<AdminOverviewPayload | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
