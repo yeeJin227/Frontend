@@ -14,10 +14,10 @@ export default function CommentItem({
 }) {
   return (
     <div className="py-4">
-      <div className="flex items-start gap-5">
+      <div className="flex items-start gap-7">
         <DefaultProfile
           className={[
-            'h-10 w-10 shrink-0 overflow-visible',
+            'h-5 w-5 shrink-0 overflow-visible',
             avatarClassName ?? '',
           ].join(' ')}
         />

@@ -1,51 +1,153 @@
 "use client";
-import type { Column } from "@/components/table/DataTable";
-import { DataTable } from "@/components/table/DataTable";
-import Button from "@/components/Button";
-import Link from "next/link";
 
-type Question = {
+import { useEffect, useMemo, useState } from "react";
+import Link from "next/link";
+import { useRouter } from "next/navigation";
+
+import Button from "@/components/Button";
+import { DataTable, type Column } from "@/components/table/DataTable";
+import { useToast } from "@/components/ToastProvider";
+import {
+  fetchInquiries,
+  fetchPublicInquiries,
+  INQUIRY_CATEGORY_OPTIONS,
+  type InquirySummary,
+} from "@/services/inquiries";
+import { useAuthStore } from "@/stores/authStore";
+
+type InquiryRow = {
+  id: number;
   no: string;
-  category: "입고/재입고" | "배송" | "작가 입점" | "품질/불량" | "기타";
+  category: string;
   title: string;
   author: string;
   date: string;
   views: number;
+  status: string;
+  isSecret: boolean;
+  replyCount: number;
 };
 
-const questionCols: Column<Question>[] = [
+const columns: Column<InquiryRow>[] = [
   { key: "no", header: "글번호", width: "w-24" },
-  {
-    key: "category",
-    header: "카테고리",
-    width: "w-28",
-    render: (r) => r.category
-  },
+  { key: "category", header: "카테고리", width: "w-32" },
   {
     key: "title",
     header: "제목",
-    render: (r) => (
+    render: (row) => (
       <div className="flex items-center gap-2">
-        <span className="truncate font-medium">{r.title}</span>
+        {row.isSecret && (
+          <span className="rounded bg-[var(--color-gray-200)] px-2 py-0.5 text-xs text-[var(--color-gray-700)]">
+            비공개
+          </span>
+        )}
+        <span className="truncate font-medium text-[var(--color-gray-900)]">{row.title}</span>
+        {row.replyCount > 0 && (
+          <span className="rounded bg-[var(--color-primary-40)] px-1.5 py-0.5 text-xs text-[var(--color-primary)]">
+            답변 {row.replyCount}
+          </span>
+        )}
       </div>
     ),
-  
   },
-   
   { key: "author", header: "작성자", width: "w-28" },
-  { key: "date", header: "작성일", width: "w-28" },
-  { key: "views", header: "조회수", width: "w-20", align: "center"},
+  { key: "date", header: "작성일", width: "w-32" },
+  { key: "views", header: "조회수", width: "w-20", align: "center" },
+  {
+    key: "status",
+    header: "상태",
+    width: "w-24",
+    render: (row) => (
+      <span
+        className={`rounded px-2 py-0.5 text-xs font-semibold ${
+          row.status === "ANSWERED"
+            ? "bg-[var(--color-primary-40)] text-[var(--color-primary)]"
+            : "bg-[var(--color-gray-100)] text-[var(--color-gray-600)]"
+        }`}
+      >
+        {row.status === "ANSWERED" ? "답변 완료" : "답변 대기"}
+      </span>
+    ),
+  },
 ];
 
 export default function QuestionListPage() {
-  const rows: Question[] = [
-    { no: "76012", category: "입고/재입고", title: "재입고 언제 되나요?", author: "ㅇㅇㅇ", date: "25.09.16", views: 1 },
-    { no: "76011", category: "배송", title: "택배가 도착을 안해요", author: "ㅇㅇㅇ", date: "25.09.16", views: 1 },
-    { no: "76010", category: "작가 입점", title: "작가회원 승인 언제 되나요?", author: "ㅇㅇㅇ", date: "25.09.16", views: 1 },
-    { no: "76009", category: "배송", title: "상품이 누락됐어요", author: "ㅇㅇㅇ", date: "25.09.16", views: 1 },
-    { no: "76008", category: "품질/불량", title: "키링 고리가 떨어져서 왔어요", author: "ㅇㅇㅇ", date: "25.09.16", views: 1 },
-    
-  ];
+  const router = useRouter();
+  const toast = useToast();
+  const role = useAuthStore((store) => store.role);
+  const isHydrated = useAuthStore((store) => store.isHydrated);
+
+  const [page, setPage] = useState(0);
+  const [pageSize] = useState(10);
+  const [items, setItems] = useState<InquirySummary[]>([]);
+  const [totalPages, setTotalPages] = useState(1);
+  const [totalElements, setTotalElements] = useState(0);
+  const [isLoading, setIsLoading] = useState(false);
+
+  useEffect(() => {
+    if (!isHydrated) return;
+    let cancelled = false;
+
+    async function load() {
+      setIsLoading(true);
+      try {
+        const fetcher = role ? fetchInquiries : fetchPublicInquiries;
+        const list = await fetcher({ page, size: pageSize });
+        if (cancelled) return;
+        setItems(list.inquiries);
+        setTotalPages(Math.max(1, list.totalPages));
+        setTotalElements(list.totalElements);
+      } catch (error) {
+        if (cancelled) return;
+        const message = error instanceof Error ? error.message : "문의 목록을 불러오지 못했습니다.";
+        toast.error(message);
+        setItems([]);
+        setTotalPages(1);
+        setTotalElements(0);
+      } finally {
+        if (!cancelled) {
+          setIsLoading(false);
+        }
+      }
+    }
+
+    load();
+    return () => {
+      cancelled = true;
+    };
+  }, [isHydrated, role, page, pageSize, toast]);
+
+  const rows: InquiryRow[] = useMemo(
+    () =>
+      items.map((item) => ({
+        id: item.id,
+        no: item.id.toString().padStart(5, "0"),
+        category: getCategoryLabel(item.category),
+        title: item.title,
+        author: item.authorName ?? "-",
+        date: formatDate(item.createDate),
+        views: item.viewCount,
+        status: item.status,
+        isSecret: item.isSecret,
+        replyCount: item.replyCount,
+      })),
+    [items],
+  );
+
+  const pageNumbers = useMemo(() => {
+    const maxButtons = 5;
+    const total = totalPages;
+    const current = page;
+    const tentativeStart = Math.max(0, current - Math.floor(maxButtons / 2));
+    const start = Math.min(tentativeStart, Math.max(0, total - maxButtons));
+    const end = Math.min(total, start + maxButtons);
+    return Array.from({ length: Math.max(0, end - start) }, (_, idx) => start + idx);
+  }, [page, totalPages]);
+
+  const handlePageChange = (next: number) => {
+    if (next < 0 || next >= totalPages || next === page) return;
+    setPage(next);
+  };
 
   return (
     <>
@@ -59,30 +161,70 @@ export default function QuestionListPage() {
       </div>
 
       <DataTable
-        columns={questionCols}
+        columns={columns}
         rows={rows}
-        rowKey={(r) => r.no}
-        onRowClick={(r) => location.assign(`/help/contact/${r.no}`)}
+        rowKey={(row) => row.id.toString()}
+        onRowClick={(row) => router.push(`/help/contact/${row.id}`)}
       />
 
-      <nav className="mt-6 flex items-center justify-center gap-4 text-sm text-[var(--color-gray-700)]">
-        <button className="px-2 py-1 hover:text-primary" aria-label="Prev">
+      {isLoading && <p className="mt-4 text-sm text-[var(--color-gray-500)]">목록을 불러오는 중입니다…</p>}
+      {!isLoading && rows.length === 0 && (
+        <p className="mt-4 text-sm text-[var(--color-gray-500)]">등록된 문의가 없습니다.</p>
+      )}
+
+      <nav className="mt-6 flex items-center justify-center gap-3 text-sm text-[var(--color-gray-700)]">
+        <button
+          type="button"
+          className="px-2 py-1 hover:text-primary disabled:cursor-not-allowed disabled:text-[var(--color-gray-400)]"
+          onClick={() => handlePageChange(page - 1)}
+          disabled={page === 0 || isLoading}
+          aria-label="Prev"
+        >
           ‹
         </button>
-        {[1, 2, 3, 4, 5].map((n) => (
+        {pageNumbers.map((pageNumber) => (
           <button
-            key={n}
+            key={pageNumber}
+            type="button"
             className={`h-8 w-8 rounded-full text-center leading-8 ${
-              n === 1 ? "text-primary font-semibold" : "hover:text-primary"
+              pageNumber === page ? "font-semibold text-primary" : "hover:text-primary"
             }`}
+            onClick={() => handlePageChange(pageNumber)}
+            disabled={isLoading}
           >
-            {n}
+            {pageNumber + 1}
           </button>
         ))}
-        <button className="px-2 py-1 hover:text-primary" aria-label="Next">
+        <button
+          type="button"
+          className="px-2 py-1 hover:text-primary disabled:cursor-not-allowed disabled:text-[var(--color-gray-400)]"
+          onClick={() => handlePageChange(page + 1)}
+          disabled={isLoading || page + 1 >= totalPages}
+          aria-label="Next"
+        >
           ›
         </button>
       </nav>
+
+      <p className="mt-2 text-center text-xs text-[var(--color-gray-500)]">
+        총 {totalElements.toLocaleString("ko-KR")}건 · {totalPages.toLocaleString("ko-KR")}페이지
+      </p>
     </>
   );
+}
+
+function formatDate(value?: string): string {
+  if (!value) return "-";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return value;
+  return new Intl.DateTimeFormat("ko-KR", {
+    year: "2-digit",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(date);
+}
+
+function getCategoryLabel(value: string): string {
+  const found = INQUIRY_CATEGORY_OPTIONS.find((option) => option.value === value);
+  return found?.label ?? value;
 }

@@ -24,8 +24,8 @@ export default function CommentForm({
 
   return (
     <div className="py-6">
-      <div className="flex items-start gap-5">
-        <DefaultProfile className="h-10 w-10 shrink-0 overflow-visible" />
+      <div className="flex items-start gap-7">
+        <DefaultProfile className="w-5 h-5 shrink-0"/>
         <div className="min-w-0 flex-1">
           <div className="flex items-start gap-5">
             <span className="shrink-0 pt-2 font-semibold">{currentUserName}</span>
