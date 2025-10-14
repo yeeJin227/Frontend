@@ -125,6 +125,28 @@ export type SocialSignupResponse = {
   };
 };
 
+export const requestPasswordReset = async (email: string): Promise<void> => {
+  const baseUrl = (process.env.NEXT_PUBLIC_API_BASE_URL ?? '').replace(/\/+$/, '');
+  const res = await fetch(`${baseUrl}/api/auth/password/reset`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ email }),
+  });
+
+  if (!res.ok) {
+    const payload = await res.json().catch(() => null);
+    const message =
+      (payload && typeof payload === 'object' && 'message' in payload && typeof (payload as { message?: string }).message === 'string'
+        ? (payload as { message: string }).message
+        : null) ||
+      (payload && typeof payload === 'object' && 'msg' in payload && typeof (payload as { msg?: string }).msg === 'string'
+        ? (payload as { msg: string }).msg
+        : null) ||
+      '비밀번호 찾기를 처리하지 못했습니다.';
+    throw new Error(message);
+  }
+};
+
 export async function completeSocialSignup(payload: SocialSignupPayload): Promise<SocialSignupResponse> {
   const baseUrl = (process.env.NEXT_PUBLIC_API_BASE_URL ?? '').replace(/\/+$/, '');
   const res = await fetch(`${baseUrl}/api/auth/social/complete`, {
