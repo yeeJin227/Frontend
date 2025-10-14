@@ -26,6 +26,7 @@ interface FundingPageProps {
 async function getPopularFundings() {
   const params: FundingListProps = {
     sortBy: 'popular',
+    status: ['OPEN'],
     size: 8, // 인기 펀딩은 8개만
   };
   return await fetchFundingList(params);
@@ -35,7 +36,7 @@ const parseSearchParams = (searchParams: SearchParams): FundingListProps => {
   return {
     status: searchParams.status
       ? (searchParams.status.split(',') as FundingStatus[])
-      : undefined,
+      : ['OPEN', 'CLOSED', 'SUCCESS', 'FAILED'],
     sortBy: (searchParams.sortBy as SortBy) || 'recent',
     keyword: searchParams.keyword || undefined,
     minPrice: searchParams.minPrice ? Number(searchParams.minPrice) : undefined,

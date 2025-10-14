@@ -11,6 +11,8 @@ interface ProductTabsProps {
   fundingId: number;
   authorId: number;
   currentUserId?: number;
+  currentUserName?: string; // 추가
+  currentUserProfileImage?: string; // 추가
   description: string;
   news: FundingNews[];
   communities: FundingCommunity[];
@@ -20,6 +22,8 @@ export default function ProductTabs({
   fundingId,
   authorId,
   currentUserId,
+  currentUserName,
+  currentUserProfileImage,
   description,
   news,
   communities,
@@ -85,9 +89,11 @@ export default function ProductTabs({
         {selectedTab === 'shipping' && (
           <CommunitySection
             fundingId={fundingId}
-            communities={communities}
             authorId={authorId}
             currentUserId={currentUserId}
+            currentUserName={currentUserName}
+            currentUserProfileImage={currentUserProfileImage}
+            communities={communities}
           />
         )}
       </div>
