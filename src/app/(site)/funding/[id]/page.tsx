@@ -80,6 +80,8 @@ export default async function FundingDetailPage({
   }
 
   const currentUserId = currentUser?.userId;
+  const currentUserName = currentUser?.name;
+  const currentUserProfileImage = currentUser?.profileImageUrl;
 
   // 이미지 배열 구성
   const productImages = [
@@ -118,6 +120,8 @@ export default async function FundingDetailPage({
             communities={funding.communities}
             authorId={funding.author.id}
             currentUserId={currentUserId}
+            currentUserName={currentUserName}
+            currentUserProfileImage={currentUserProfileImage}
           />
 
           <AuthorInfo
