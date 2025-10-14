@@ -18,10 +18,11 @@ function Layout({ children }: { children: React.ReactNode }) {
   };
 
   return (
-    <div className="flex h-screen">
-      <div className=" w-[241px] bg-primary-20 pl-[21px]">
+    <div className="flex min-h-screen">
+      {/* 사이드바 - sticky로 스크롤 시 상단 고정 */}
+      <div className="w-[241px] bg-primary-20 pl-[21px] sticky top-0 self-start h-screen overflow-y-auto">
         <h2 className="text-[32px] font-bold pt-7 mb-[34px]">마이 페이지</h2>
-        <div className="flex flex-col gap-[26px]">
+        <div className="flex flex-col gap-[26px] pb-8">
           {navItems.map((elem) => {
             const isActive = pathname === elem.href;
             const hasSubItems = elem.subItems && elem.subItems.length > 0;
@@ -34,7 +35,6 @@ function Layout({ children }: { children: React.ReactNode }) {
                 {/* 상위 메뉴 */}
                 <div className="flex items-center justify-between pr-8">
                   {hasSubItems ? (
-                    // 하위 메뉴가 있으면 버튼으로 토글만
                     <button
                       onClick={() => toggleMenu(elem.href)}
                       className={`font-bold text-[18px] text-left ${
@@ -46,7 +46,6 @@ function Layout({ children }: { children: React.ReactNode }) {
                       {elem.label}
                     </button>
                   ) : (
-                    // 하위 메뉴가 없으면 링크로 이동
                     <div
                       className={`font-bold text-[18px] ${
                         isActive || isParentActive
@@ -58,7 +57,6 @@ function Layout({ children }: { children: React.ReactNode }) {
                     </div>
                   )}
 
-                  {/* 화살표 아이콘 (하위 메뉴가 있을 때만) */}
                   {hasSubItems && (
                     <svg
                       className={`w-3 h-3 transition-transform ${
@@ -72,7 +70,7 @@ function Layout({ children }: { children: React.ReactNode }) {
                   )}
                 </div>
 
-                {/* 하위 메뉴 (열려있을 때만) */}
+                {/* 하위 메뉴 */}
                 {hasSubItems && isOpen && (
                   <div className="ml-4 mt-3 flex flex-col gap-3">
                     {elem.subItems.map((subItem) => {
@@ -97,8 +95,11 @@ function Layout({ children }: { children: React.ReactNode }) {
           })}
         </div>
       </div>
-      {children}
+
+      {/* 메인 콘텐츠 영역 - 자유롭게 늘어남 */}
+      <main className="flex-1">{children}</main>
     </div>
   );
 }
+
 export default Layout;

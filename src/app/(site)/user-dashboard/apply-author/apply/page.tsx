@@ -34,8 +34,6 @@ type ArtistApplicationRequest = {
 };
 type ApiResponse<T> = { resultCode: string; msg: string; data: T };
 
-
-
 export default function ApplicationForm() {
   const [formData, setFormData] = useState({
     name: '홍길동',
@@ -67,8 +65,6 @@ export default function ApplicationForm() {
   const [loading, setLoading] = useState(false);
   const [okId, setOkId] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
-
-
 
   const handleInputChange = (field: string, value: string) => {
     setFormData((prev) => ({ ...prev, [field]: value }));
@@ -112,21 +108,19 @@ export default function ApplicationForm() {
     console.log('취소');
   };
 
-
-function makeDocMeta(file: File | null): S3FileRequest[] {
-  if (!file) return [];
-  const now = Date.now();
-  const safe = encodeURIComponent(file.name);
-  return [
-    {
-      url: `local://pending/${now}/${safe}`,     // 임시 URL
-      s3Key: `pending/${now}/${safe}`,           // 임시 키
-      originalFileName: file.name,
-      type: 'DOCUMENT',
-    },
-  ];
-}
-
+  function makeDocMeta(file: File | null): S3FileRequest[] {
+    if (!file) return [];
+    const now = Date.now();
+    const safe = encodeURIComponent(file.name);
+    return [
+      {
+        url: `local://pending/${now}/${safe}`, // 임시 URL
+        s3Key: `pending/${now}/${safe}`, // 임시 키
+        originalFileName: file.name,
+        type: 'DOCUMENT',
+      },
+    ];
+  }
 
   function buildPayload({
     businessFiles,
@@ -178,61 +172,68 @@ function makeDocMeta(file: File | null): S3FileRequest[] {
     };
   }
 
-
   const handleSubmit = async () => {
-  try {
-    setLoading(true);
-    setOkId(null);
-    setError(null);
+    try {
+      setLoading(true);
+      setOkId(null);
+      setError(null);
 
-    // 선택 파일을 임시 메타데이터로
-    const businessFiles  = makeDocMeta(formData.businessFile);
-    const telecomFiles   = makeDocMeta(formData.registrationFile);
-    const portfolioFiles = makeDocMeta(formData.portfolioFile);
+      // 선택 파일을 임시 메타데이터로
+      const businessFiles = makeDocMeta(formData.businessFile);
+      const telecomFiles = makeDocMeta(formData.registrationFile);
+      const portfolioFiles = makeDocMeta(formData.portfolioFile);
 
-    if (!businessFiles.length || !telecomFiles.length) {
-      throw new Error('사업자등록증과 통신판매업신고증 파일은 필수입니다.');
-    }
-
-    // PORTFOLIO는 없으면 빈 배열
-    const payload = buildPayload({ businessFiles, telecomFiles, portfolioFiles });
-
-    // 신청 호출
-    const res = await fetch(`${process.env.NEXT_PUBLIC_API_BASE_URL}/api/artist/application`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        accept: 'application/json;charset=UTF-8',
-      },
-      credentials: 'include',
-      body: JSON.stringify(payload),
-    });
-
-    const text = await res.text().catch(() => '');
-    if (!res.ok) {
-      // 서버 표준 응답 파싱해서 메시지 노출
-      try {
-        const j = JSON.parse(text) as ApiResponse<unknown>;
-        throw new Error(j?.msg || `작가 신청 실패 (HTTP ${res.status})`);
-      } catch {
-        throw new Error(text || `작가 신청 실패 (HTTP ${res.status})`);
+      if (!businessFiles.length || !telecomFiles.length) {
+        throw new Error('사업자등록증과 통신판매업신고증 파일은 필수입니다.');
       }
+
+      // PORTFOLIO는 없으면 빈 배열
+      const payload = buildPayload({
+        businessFiles,
+        telecomFiles,
+        portfolioFiles,
+      });
+
+      // 신청 호출
+      const res = await fetch(
+        `${process.env.NEXT_PUBLIC_API_BASE_URL}/api/artist/application`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            accept: 'application/json;charset=UTF-8',
+          },
+          credentials: 'include',
+          body: JSON.stringify(payload),
+        },
+      );
+
+      const text = await res.text().catch(() => '');
+      if (!res.ok) {
+        // 서버 표준 응답 파싱해서 메시지 노출
+        try {
+          const j = JSON.parse(text) as ApiResponse<unknown>;
+          throw new Error(j?.msg || `작가 신청 실패 (HTTP ${res.status})`);
+        } catch {
+          throw new Error(text || `작가 신청 실패 (HTTP ${res.status})`);
+        }
+      }
+
+      const json = JSON.parse(text) as ApiResponse<number>;
+      if (json.resultCode !== '200')
+        throw new Error(json.msg || '작가 신청 실패');
+
+      setOkId(json.data);
+    } catch (e: unknown) {
+      if (e instanceof Error) {
+        setError(e.message);
+      } else {
+        setError('신청 처리 중 오류가 발생했습니다.');
+      }
+    } finally {
+      setLoading(false);
     }
-
-    const json = JSON.parse(text) as ApiResponse<number>;
-    if (json.resultCode !== '200') throw new Error(json.msg || '작가 신청 실패');
-
-    setOkId(json.data);
-  } catch (e: unknown) {
-  if (e instanceof Error) {
-    setError(e.message);
-  } else {
-    setError('신청 처리 중 오류가 발생했습니다.');
-  }
-  } finally {
-    setLoading(false);
-  }
-};
+  };
 
   return (
     <div className="px-6 py-10 max-w-5xl mx-auto w-full">
