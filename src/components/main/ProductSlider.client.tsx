@@ -6,12 +6,12 @@ import ProductCard from '../ProductCard';
 import type { ProductListItem } from '@/types/product';
 
 const isNum = (v: unknown): v is number => typeof v === 'number' && Number.isFinite(v);
-const toCurrency = (n: number | null | undefined) =>
-  isNum(n) ? `${n.toLocaleString('ko-KR')}원` : '';
-const toPercent = (n: number | null | undefined) =>
-  isNum(n) && n > 0 ? `${n}%` : undefined;
-const toRating = (n: number | null | undefined) =>
-  isNum(n) ? n.toFixed(1) : '0.0';
+const toCurrency = (n: number | null | undefined) => (isNum(n) ? `${n.toLocaleString('ko-KR')}원` : '');
+const toPercent  = (n: number | null | undefined) => (isNum(n) && n > 0 ? `${n}%` : undefined);
+const toRating   = (n: number | null | undefined) => (isNum(n) ? n.toFixed(1) : '0.0');
+
+const safeImg = (url?: string | null): string | null =>
+  url && url.trim().length > 0 ? url : null;
 
 export default function ProductSlider({ items }: { items: ProductListItem[] }) {
   const itemsPerPage = 4;
@@ -65,10 +65,10 @@ export default function ProductSlider({ items }: { items: ProductListItem[] }) {
                   <div key={p.productUuid}>
                     <Link href={`/product/${p.productUuid}`}>
                       <ProductCard
-                        img={p.url}
+                        img={safeImg(p.url)} 
                         title={p.name}
                         brand={p.brandName}
-                        discount={p.discountRate ? toPercent(p.discountRate) : undefined}
+                        discount={toPercent(p.discountRate)}
                         price={toCurrency(p.discountPrice)}
                         originalPrice={toCurrency(p.price)}
                         rating={toRating(p.rating)}

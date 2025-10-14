@@ -1,5 +1,6 @@
 
-import Hero from '@/components/Hero';
+
+import { MainHeroSlider } from '@/components/main/MainHeroSlider';
 import {
   UpcomingProductsSection,
   RestockProductsSection,
@@ -14,7 +15,7 @@ export const dynamic = 'force-dynamic';
 export default async function Home() {
   return (
     <>
-      <Hero />
+      <MainHeroSlider />
       <div className="px-[125px] pb-12 space-y-12">
         {/* <ProductSection
           title="전체 상품"

@@ -127,18 +127,6 @@ export default async function CategoryPage({
     size,
   });
 
-  const toUI = (p: ApiProductListItem) => ({
-    id: p.productUuid,
-    img: p.url,
-    title: p.name,
-    brand: p.brandName,
-    price: new Intl.NumberFormat('ko-KR').format(p.discountPrice ?? p.price ?? 0),
-    originalPrice: new Intl.NumberFormat('ko-KR').format(p.price ?? p.discountPrice ?? 0),
-    discount: p.discountRate ? `${p.discountRate}%` : '',
-    rating: p.rating != null ? p.rating.toFixed(1) : '',
-    createdAt: new Date().toISOString().slice(0, 10),
-  });
-
   const bestSliderItems = (bestData.products as ApiProductListItem[]).map((p) => ({
     productUuid: p.productUuid,
     url: p.url,
@@ -150,7 +138,18 @@ export default async function CategoryPage({
     rating: p.rating ?? 0,
   }));
 
-  const uiProducts = (listData.products as ApiProductListItem[]).map(toUI);
+
+const listSliderItems = (listData.products as ApiProductListItem[]).map((p) => ({
+  productUuid: p.productUuid,
+  url: p.url,
+  brandName: p.brandName,
+  name: p.name,
+  price: p.price,
+  discountRate: p.discountRate,
+  discountPrice: p.discountPrice ?? p.price ?? 0,
+  rating: p.rating ?? 0,
+}));
+
   const isEmpty = listData.totalElements === 0;
   const resetHref = buildCategoryPath({ id: current.id });
 
@@ -187,7 +186,7 @@ export default async function CategoryPage({
                   <ProductSlider items={bestSliderItems} />
                 </section>
               )}
-              <FilteredSection products={uiProducts} />
+              <FilteredSection items={listSliderItems} />
             </>
           )}
         </main>

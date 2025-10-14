@@ -29,7 +29,7 @@ const adminLinks: AdminLink[] = [
       { href: "/artist/monitor/history", label: "입금/환전 내역" },
     ],
   },
-  { href: "/artist/users", label: "펀딩 관리" },
+  { href: "/artist/funding", label: "펀딩 관리" },
   { href: "/artist/account-setting", label: "판매자 설정" },
 ];
 

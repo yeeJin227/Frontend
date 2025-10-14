@@ -34,7 +34,7 @@ export default function TextReviewCard({
               ))}
             </div>
           </div>
-          <button className="cursor-pointer"><Heart /></button>
+          <button data-like className="cursor-pointer"><Heart /></button>
       </div>
 
       <div className="pl-15 pr-5">

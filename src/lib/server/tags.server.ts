@@ -4,13 +4,12 @@ import { cookies } from 'next/headers';
 import { revalidateTag, revalidatePath } from 'next/cache';
 import type { Tag, TagPayload, ApiResponse } from '@/types/tag';
 
-const API = process.env.NEXT_PUBLIC_API_BASE_URL!;
 
 // SSR 태그 목록 (사이드바용)
 export async function fetchTagsServer(): Promise<Tag[]> {
   const cookieHeader = cookies().toString();
 
-  const res = await fetch(`${API}/api/tags`, {
+  const res = await fetch(`${process.env.NEXT_PUBLIC_API_BASE_URL}/api/tags`, {
     method: 'GET',
     headers: {
       Accept: 'application/json',
@@ -31,7 +30,7 @@ export async function fetchTagsServer(): Promise<Tag[]> {
 export async function createTag(payload: TagPayload): Promise<Tag> {
   const cookieHeader = cookies().toString();
 
-  const res = await fetch(`${API}/api/tags`, {
+  const res = await fetch(`${process.env.NEXT_PUBLIC_API_BASE_URL}/api/tags`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -60,7 +59,7 @@ export async function createTag(payload: TagPayload): Promise<Tag> {
 export async function updateTag(id: number, payload: TagPayload): Promise<Tag> {
   const cookieHeader = cookies().toString();
 
-  const res = await fetch(`${API}/api/tags/${id}`, {
+  const res = await fetch(`${process.env.NEXT_PUBLIC_API_BASE_URL}/api/tags/${id}`, {
     method: 'PUT',
     headers: {
       'Content-Type': 'application/json',
@@ -89,7 +88,7 @@ export async function updateTag(id: number, payload: TagPayload): Promise<Tag> {
 export async function deleteTag(id: number): Promise<boolean> {
   const cookieHeader = cookies().toString();
 
-  const res = await fetch(`${API}/api/tags/${id}`, {
+  const res = await fetch(`${process.env.NEXT_PUBLIC_API_BASE_URL}/api/tags/${id}`, {
     method: 'DELETE',
     headers: {
       Accept: 'application/json',

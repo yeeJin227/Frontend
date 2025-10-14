@@ -38,11 +38,11 @@ export default function ProductFilter({
         <div className="bg-gray-200 h-[1px] w-full max-w-5xl my-8"></div>
 
         <div className="mb-6 ml-6 w-full max-w-5xl">
-            <div ref={rootRef} className="relative">
+            <div ref={rootRef} className="relative z-50">
                 <button 
                 type="button"
                 onClick={()=>setOpen((prev)=>!prev)}
-                className="group flex items-center gap-2 mb-2 px-3 py-2 bg-primary rounded-[10px] border border-primary text-white hover:bg-white hover:border-primary"
+                className="group flex items-center gap-2 mb-2 px-3 py-2 bg-primary rounded-[10px] border border-primary text-white cursor-pointer transition hover:bg-white hover:border-primary"
                 >
                     {open ? (
                         <FilterArrowOpen className=" group-hover:text-black"/>
@@ -54,7 +54,7 @@ export default function ProductFilter({
 
                 {/* 버튼 클릭 시 드롭다운 */}
                 {open && (
-                    <div className="absolute w-[120px] bg-white text-center border border-primary rounded-[10px]">
+                    <div className="absolute w-[120px] bg-white text-center border border-primary rounded-[10px] cursor-pointer">
                         <ul className="py-2">
                             {
                                 OPTIONS.map((item) => (
