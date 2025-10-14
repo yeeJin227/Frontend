@@ -2,25 +2,23 @@
 
 import { useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
-import { fetchAuthStatus } from '@/services/auth';
 import { useToast } from '@/components/ToastProvider';
+import { useAuthStore } from '@/stores/authStore';
 
 export default function MyPage() {
   const router = useRouter();
   const toast = useToast();
   const hasChecked = useRef(false);
+  const role = useAuthStore((store) => store.role);
 
   useEffect(() => {
     if (hasChecked.current) return;
     hasChecked.current = true;
 
     const checkAuth = async () => {
-      const user = await fetchAuthStatus();
-      const userRole = user ? user.role : undefined;
-
-      if (userRole === 'USER') {
+      if (role === 'USER') {
         router.push('/user-dashboard');
-      } else if (userRole === 'ARTIST') {
+      } else if (role === 'ARTIST') {
         router.push('/artist/main');
       } else {
         toast.error('로그인이 필요한 서비스입니다');
@@ -29,7 +27,7 @@ export default function MyPage() {
     };
 
     checkAuth();
-  }, [router, toast]);
+  }, [role, router, toast]);
 
   return (
     <div className="flex items-center justify-center min-h-screen">
