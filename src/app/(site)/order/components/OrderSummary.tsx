@@ -1,6 +1,7 @@
 'use client';
 
 import React from 'react';
+import { useRouter } from 'next/navigation';
 import { CartItem } from '../types/cart.types';
 
 interface OrderSummaryProps {
@@ -8,6 +9,8 @@ interface OrderSummaryProps {
 }
 
 const OrderSummary = ({ allItems }: OrderSummaryProps) => {
+  const router = useRouter();
+
   const calculateTotal = () => {
     const checkedItems = allItems.filter((item) => item.isChecked);
     const totalPrice = checkedItems.reduce(
@@ -26,22 +29,14 @@ const OrderSummary = ({ allItems }: OrderSummaryProps) => {
   const { totalPrice, shippingFee, finalPrice, checkedCount } =
     calculateTotal();
 
-  const handleSelectedOrder = () => {
+  const handleOrder = () => {
     if (checkedCount === 0) {
-      alert('선택된 상품이 없습니다.');
+      alert('주문할 상품을 선택해주세요.');
       return;
     }
-    // TODO: 선택 주문 처리 로직
-    console.log('선택 주문:', checkedCount);
-  };
 
-  const handleAllOrder = () => {
-    if (allItems.length === 0) {
-      alert('장바구니가 비어있습니다.');
-      return;
-    }
-    // TODO: 전체 주문 처리 로직
-    console.log('전체 주문:', allItems.length);
+    // 결제 페이지로 이동
+    router.push('/order/payment');
   };
 
   return (
@@ -65,18 +60,13 @@ const OrderSummary = ({ allItems }: OrderSummaryProps) => {
       </section>
 
       {/* 주문 버튼 */}
-      <section className="flex justify-center gap-4">
+      <section className="flex justify-center">
         <button
-          onClick={handleSelectedOrder}
-          className="px-8 py-3 border border-primary text-primary rounded bg-white font-semibold hover:bg-gray-50"
+          onClick={handleOrder}
+          disabled={checkedCount === 0}
+          className="px-6 py-3 bg-primary text-white rounded font-semibold hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed"
         >
-          선택주문({checkedCount})
-        </button>
-        <button
-          onClick={handleAllOrder}
-          className="px-8 py-3 bg-primary text-white rounded font-semibold hover:bg-primary/90"
-        >
-          전체주문
+          {checkedCount}개 상품 주문하기
         </button>
       </section>
     </>

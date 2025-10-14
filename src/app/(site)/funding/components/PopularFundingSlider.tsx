@@ -26,7 +26,9 @@ export function PopularFundingSlider({ fundings }: PopularFundingSliderProps) {
 
   return (
     <div className="mb-12 w-full max-w-5xl">
-      <h2 className="text-[32px] font-bold mb-6 text-left">인기 펀딩</h2>
+      <h2 className="text-[32px] font-bold mb-6 text-left">
+        진행 중인 인기 펀딩
+      </h2>
 
       <div className="relative">
         <button

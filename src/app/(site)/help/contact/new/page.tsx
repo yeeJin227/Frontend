@@ -1,56 +1,135 @@
 'use client';
-import { useState } from 'react';
+
+import { useMemo, useState } from 'react';
+import { useRouter } from 'next/navigation';
 import NoticeEditor from '@/components/editor/NoticeEditor';
+import Button from '@/components/Button';
 
 import Paperclip from '@/assets/icon/paperclip2.svg';
 
+import { useToast } from '@/components/ToastProvider';
+import { createInquiry, INQUIRY_CATEGORY_OPTIONS, type InquiryCategory } from '@/services/inquiries';
+import { useAuthStore } from '@/stores/authStore';
+
 export default function ContactCreatePage() {
+  const router = useRouter();
+  const toast = useToast();
+  const accessToken = useAuthStore((store) => store.accessToken);
+  const [category, setCategory] = useState<InquiryCategory>('DELIVERY');
   const [title, setTitle] = useState('');
-  const [html, setHtml] = useState(''); // 에디터 결과
+  const [content, setContent] = useState('');
+  const [html, setHtml] = useState('');
   const [files, setFiles] = useState<File[]>([]);
-  const [priority, setPriority] = useState<'important' | 'normal'>('normal');
+  const [isSecret, setIsSecret] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+
+  const fileSummary = useMemo(() => {
+    if (files.length === 0) return '';
+    if (files.length === 1) return files[0].name;
+    return `${files[0].name} 외 ${files.length - 1}개`;
+  }, [files]);
+  const handleFiles = (incoming: FileList | null) => {
+    if (!incoming) return;
+    const next = Array.from(incoming);
+    if (next.length > 3) {
+      toast.error('첨부파일은 최대 3개까지 업로드할 수 있습니다.');
+      setFiles(next.slice(0, 3));
+      return;
+    }
+    setFiles(next);
+  };
+  const handleSubmit = async () => {
+    if (!title.trim()) {
+      toast.error('제목을 입력해 주세요.');
+      return;
+    }
+    if (!content.trim()) {
+      toast.error('내용을 입력해 주세요.');
+      return;
+    }
+    if (!accessToken) {
+      toast.error('로그인 후 이용해 주세요.');
+      router.push('/login');
+      return;
+    }
+    setSubmitting(true);
+    try {
+      const uploadedFiles = await Promise.all(files.map((file) => uploadToS3(file)));
+      await createInquiry(
+        {
+          category,
+          title: title.trim(),
+          content,
+          isSecret,
+          files: uploadedFiles,
+        },
+        { accessToken },
+      );
+      toast.success('문의가 등록되었습니다.');
+      router.replace('/help/contact');
+      router.refresh();
+    } catch (error) {
+      const message = error instanceof Error ? error.message : '문의 등록에 실패했습니다.';
+      toast.error(message);
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
 
   return (
-    <main className="mt-[94px] mb-4 flex flex-col">
-      <h1 className="mb-[30px] text-2xl font-bold">문의하기</h1>
+    <main className="mt-[94px] mb-4 flex flex-col gap-4">
+      <h1 className="text-2xl font-bold">문의하기</h1>
       <hr />
-      {/* 카테고리 */}
-      <label className="flex items-center my-3 gap-6">
-        <span className="shrink-0 whitespace-nowrap">카테고리</span>
-      <select className="w-48 rounded border border-[var(--color-gray-200)] px-3 py-2">
-        <option>입고/재입고</option>
-        <option>배송</option>
-        <option>작가 입점</option>
-        <option>품질/불량</option>
-        <option>취소/환불</option>
-        <option>기타</option>
-      </select>
-        </label>
+      
+       <label className="flex items-center gap-4 text-sm">
+        <span className="shrink-0">카테고리</span>
+        <select
+          className="w-48 rounded border border-[var(--color-gray-200)] px-3 py-2"
+          value={category}
+          onChange={(event) => setCategory(event.target.value as InquiryCategory)}
+        >
+          {INQUIRY_CATEGORY_OPTIONS.map((option) => (
+            <option key={option.value} value={option.value}>
+              {option.label}
+            </option>
+          ))}
+        </select>
+      </label>
+      <label className="flex items-center gap-2 text-sm">
+        <input
+          type="checkbox"
+          checked={isSecret}
+          onChange={(event) => setIsSecret(event.target.checked)}
+          className="h-4 w-4 accent-[var(--color-primary)]"
+        />
+        <span>비공개 문의로 등록</span>
+      </label>
 
       <hr />
+
       {/* 제목 */}
-      <label className="flex items-center my-[13px] gap-6">
+      <label className="flex items-center gap-6">
         <span className="shrink-0 whitespace-nowrap">제목</span>
         <input
           value={title}
-          onChange={(e) => setTitle(e.target.value)}
+          onChange={(event) => setTitle(event.target.value)}
           className="flex-1 rounded border border-[var(--color-gray-200)] px-3 py-2"
         />
       </label>
       <hr />
       {/* 에디터 */}
-      <div className="my-[13px]">
+      <div className="flex flex-col gap-3">
         <span>내용</span>
-        <div className="my-[13px]">
-          <NoticeEditor onChange={setHtml} onUploadImage={uploadToS3} />
-        </div>
+        <NoticeEditor value={content} onChange={setContent} onUploadImage={uploadToS3} />
       </div>
+
       <hr />
       {/* 첨부파일 */}
-      <div className="my-[13px] flex items-center gap-3">
-        <div className="flex items-center gap-0.5">
+      <div className="flex items-center gap-3">
+        <div className="flex items-center gap-0.5 text-sm">
           <span className="shrink-0">첨부파일</span>
-          <Paperclip className="block size-4 overflow-visible text-[var(--color-gray-200)] shrink-0" />
+          <Paperclip className="size-4 shrink-0 text-[var(--color-gray-200)]" />
         </div>
         <div className="relative flex-1">
           <input
@@ -58,19 +137,13 @@ export default function ContactCreatePage() {
             type="file"
             multiple
             className="sr-only"
-            onChange={(e) => setFiles(Array.from(e.target.files ?? []))}
+            onChange={(event) => handleFiles(event.target.files)}
           />
           <input
             type="text"
             readOnly
-            value={
-              files.length === 0
-                ? ''
-                : files.length === 1
-                  ? files[0].name
-                  : `${files[0].name} 외 ${files.length - 1}개`
-            }
-            placeholder="파일을 선택하세요"
+            value={fileSummary}
+            placeholder="파일을 선택하세요 (최대 3개)"
             className="w-full rounded border border-[var(--color-gray-200)] px-3 py-2 pr-24 leading-none"
             onClick={() => document.getElementById('fileInput')?.click()}
           />
@@ -93,21 +166,13 @@ export default function ContactCreatePage() {
         </div>
       </div>
 
-      <div className="flex self-end gap-2">
-        <button className="rounded border px-4 py-2">작성취소</button>
-        <button
-          className="rounded bg-[var(--color-primary)] px-4 py-2 text-white"
-          onClick={async () => {
-            // 서버로 전송
-            await fetch('/api/support/notices', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ title, bodyHtml: html, attachments: [] }),
-            });
-          }}
-        >
-          작성하기
-        </button>
+      <div className="mt-6 flex self-end gap-2">
+      <Button variant="outline" onClick={() => router.back()} disabled={submitting}>
+        작성취소
+      </Button>
+      <Button onClick={handleSubmit} isLoading={submitting} disabled={submitting}>
+        작성하기
+      </Button>
       </div>
     </main>
   );
@@ -115,19 +180,20 @@ export default function ContactCreatePage() {
 
 // S3 프리사인드 URL 업로드
 async function uploadToS3(file: File): Promise<string> {
-  // 1) 서버에서 presigned URL 요청
-  const { url, key } = await (
-    await fetch('/api/uploads/presign', {
-      method: 'POST',
-      body: JSON.stringify({ filename: file.name, type: file.type }),
-    })
-  ).json();
-  // 2) 해당 URL로 PUT 업로드
+ const res = await fetch('api/uploads/presign', {
+  method: 'POST',
+  body: JSON.stringify({filename: file.name, type: file.type }),
+ });
+ if (!res.ok) {
+  throw new Error('파일 업로드 URL을 받지 못했습니다.');
+ }
+ const { url, key } = await res.json();
+
   await fetch(url, {
     method: 'PUT',
     body: file,
     headers: { 'Content-Type': file.type },
   });
-  // 3) 퍼블릭 접근 URL 반환
-  return `${process.env.NEXT_PUBLIC_CDN}/${key}`;
+  const cdn = process.env.NEXT_PUBLIC_CDN ?? '';
+  return cdn ? `${cdn}/${key}` : url;
 }

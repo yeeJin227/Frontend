@@ -34,6 +34,41 @@ export function FilterSidebar() {
     router.push(`/funding?${params.toString()}`);
   };
 
+  // ⭐ 종료 상태 토글 (CLOSED, SUCCESS, FAILED 한번에)
+  const toggleClosedStatuses = () => {
+    const params = new URLSearchParams(searchParams);
+    const closedStatuses = ['CLOSED', 'SUCCESS', 'FAILED'];
+
+    let statuses = params.get('status')?.split(',').filter(Boolean) || [];
+
+    // 세 개 중 하나라도 포함되어 있으면 모두 제거
+    const hasAnyClosedStatus = closedStatuses.some((status) =>
+      statuses.includes(status),
+    );
+
+    if (hasAnyClosedStatus) {
+      // 모두 제거
+      statuses = statuses.filter((s) => !closedStatuses.includes(s));
+    } else {
+      // 모두 추가 (중복 방지)
+      closedStatuses.forEach((status) => {
+        if (!statuses.includes(status)) {
+          statuses.push(status);
+        }
+      });
+    }
+
+    // status 업데이트
+    if (statuses.length > 0) {
+      params.set('status', statuses.join(','));
+    } else {
+      params.delete('status');
+    }
+
+    params.set('page', '0');
+    router.push(`/funding?${params.toString()}`);
+  };
+
   const togglePriceRange = (priceId: string) => {
     const params = new URLSearchParams(searchParams);
 
@@ -92,6 +127,12 @@ export function FilterSidebar() {
     router.push(`/funding?${params.toString()}`);
   };
 
+  // ⭐ 종료 상태 체크 여부 (CLOSED, SUCCESS, FAILED 중 하나라도 있으면 체크)
+  const isClosedChecked =
+    currentStatuses.includes('CLOSED') ||
+    currentStatuses.includes('SUCCESS') ||
+    currentStatuses.includes('FAILED');
+
   return (
     <aside className="bg-[#f6f4eb] px-[38px] py-[29px] min-h-[calc(100vh-300px)]">
       <div className="space-y-6">
@@ -112,8 +153,8 @@ export function FilterSidebar() {
               <input
                 type="checkbox"
                 className="w-4 h-4"
-                checked={currentStatuses.includes('CLOSED')}
-                onChange={() => toggleStatus('CLOSED')}
+                checked={isClosedChecked}
+                onChange={toggleClosedStatuses}
               />
               <span className="text-sm">종료</span>
             </label>

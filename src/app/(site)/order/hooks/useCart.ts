@@ -27,6 +27,9 @@ export const useCart = () => {
         data.data.fundingCartItems,
       );
 
+      console.log(
+        `일반 장바구니 : ${normalItems}\n펀딩 장바구니 :${fundingItems}`,
+      );
       return {
         normalItems,
         fundingItems,

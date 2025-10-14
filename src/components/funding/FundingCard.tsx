@@ -23,7 +23,7 @@ function FundingCard({ data }: Props) {
         <p className="text-gray-400 text-sm font-semibold mt-3">
           {data.authorName}
         </p>
-        <p className="font-semibold mt-1 line-clamp-2 group-hover:text-primary transition-colors">
+        <p className="font-semibold mt-1 line-clamp-2 group-hover:text-primary transition-colors truncate">
           {data.title}
         </p>
         <div className="flex text-primary mt-2">

@@ -32,7 +32,7 @@ export default function PostDetail({
                 {topLeft.map((m, i) => (
                   <div key={i} className="flex items-center gap-[30px]">
                     <span className="font-medium">{m.label}</span>
-                    <span className="text-sm font-normal">{m.value}</span>
+                    <span className="text-sm font-normal text-[var(--color-gray-600)]">{m.value}</span>
                   </div>
                 ))}
               </div>
@@ -42,7 +42,7 @@ export default function PostDetail({
                 {topRight.map((m, i) => (
                   <div key={i} className="flex items-center gap-[30px]">
                     <span className="font-medium">{m.label}</span>
-                    <span className="text-sm font-normal">{m.value}</span>
+                    <span className="text-sm font-normal text-[var(--color-gray-600)]">{m.value}</span>
                   </div>
                 ))}
               </div>
@@ -55,12 +55,12 @@ export default function PostDetail({
           <div className="w-full flex justify-between gap-[30px]">
             <div className="flex items-center gap-[30px]">
               <span className="font-medium">{titleLeft.label}</span>
-              <span className="text-sm font-normal">{titleLeft.value}</span>
+              <span className="text-sm font-normal text-[var(--color-gray-600)]">{titleLeft.value}</span>
             </div>
             {titleRight && (
               <div className="flex items-center gap-[30px]">
                 <span className="font-medium">{titleRight.label}</span>
-                <span className="text-sm font-normal">{titleRight.value}</span>
+                <span className="text-sm font-normal text-[var(--color-gray-600)]">{titleRight.value}</span>
               </div>
             )}
           </div>
@@ -68,7 +68,7 @@ export default function PostDetail({
         <hr />
         <div className="my-[13px]  flex flex-col items-start gap-[20px]">
           <span className="font-medium">내용</span>
-          <div className="text-sm font-normal">{content}</div>
+          <div className="text-sm font-normal text-[var(--color-gray-600)]">{content}</div>
         </div>
         <hr />
       </div>

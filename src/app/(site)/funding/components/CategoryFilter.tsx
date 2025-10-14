@@ -29,11 +29,11 @@ export function CategoryFilter({ categories }: CategoryFilterProps) {
           onClick={() => toggle(category.name)}
           className={`border rounded-[20px] px-4 py-2 text-sm transition-colors ${
             selected.includes(category.name)
-              ? 'bg-green-600 text-white border-green-600'
-              : 'border-gray-300 text-gray-600 hover:border-green-600 hover:text-green-600'
+              ? 'bg-primary text-white border-primary'
+              : 'border-gray-300 text-gray-600 hover:border-primary hover:text-primary'
           }`}
         >
-          {category.name}({category.count})
+          {category.name}
         </button>
       ))}
     </div>

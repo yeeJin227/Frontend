@@ -13,7 +13,6 @@ const OrderPage = () => {
           <span className="text-gray-300">03 주문완료</span>
         </div>
 
-        {/* 클라이언트 컴포넌트 - TanStack Query로 데이터 페칭 */}
         <OrderContent />
       </main>
     </div>

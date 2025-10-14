@@ -1,8 +1,8 @@
 // app/funding/[id]/_components/ProductTabs.tsx
 'use client';
 
-import { useState } from 'react';
-import NewsInputModal from '@/components/funding/NewsInputModal';
+import { useState, useEffect } from 'react';
+import { useSearchParams, useRouter } from 'next/navigation';
 import CommunitySection from './CommunitySection';
 import NewsSection from './NewsSection';
 import { FundingNews, FundingCommunity } from '@/types/funding';
@@ -11,6 +11,8 @@ interface ProductTabsProps {
   fundingId: number;
   authorId: number;
   currentUserId?: number;
+  currentUserName?: string;
+  currentUserProfileImage?: string;
   description: string;
   news: FundingNews[];
   communities: FundingCommunity[];
@@ -20,17 +22,36 @@ export default function ProductTabs({
   fundingId,
   authorId,
   currentUserId,
+  currentUserName,
+  currentUserProfileImage,
   description,
   news,
   communities,
 }: ProductTabsProps) {
-  const [selectedTab, setSelectedTab] = useState('description');
+  const searchParams = useSearchParams();
+  const router = useRouter();
+
+  // URL에서 현재 탭 읽기 (기본값: 'description')
+  const tabFromUrl = searchParams.get('tab') || 'description';
+  const [selectedTab, setSelectedTab] = useState(tabFromUrl);
+
+  // URL 변경 시 탭 업데이트
+  useEffect(() => {
+    const tab = searchParams.get('tab') || 'description';
+    setSelectedTab(tab);
+  }, [searchParams]);
+
+  const handleTabChange = (tab: string) => {
+    setSelectedTab(tab);
+    // URL 업데이트 (스크롤 위치 유지)
+    router.push(`?tab=${tab}`, { scroll: false });
+  };
 
   return (
     <div className="bg-white rounded-lg shadow-sm w-full max-w-[760px]">
       <nav className="flex text-4 font-semibold">
         <button
-          onClick={() => setSelectedTab('description')}
+          onClick={() => handleTabChange('description')}
           className={`flex-1 px-6 py-2 border-1 border-tertiary ${
             selectedTab === 'description'
               ? 'bg-tertiary text-white'
@@ -40,7 +61,7 @@ export default function ProductTabs({
           프로젝트 소개
         </button>
         <button
-          onClick={() => setSelectedTab('details')}
+          onClick={() => handleTabChange('details')}
           className={`flex-1 px-6 py-2 border-1 border-tertiary ${
             selectedTab === 'details'
               ? 'bg-tertiary text-white'
@@ -50,7 +71,7 @@ export default function ProductTabs({
           새 소식
         </button>
         <button
-          onClick={() => setSelectedTab('shipping')}
+          onClick={() => handleTabChange('shipping')}
           className={`flex-1 px-6 py-2 border-1 border-tertiary ${
             selectedTab === 'shipping'
               ? 'bg-tertiary text-white'
@@ -85,9 +106,11 @@ export default function ProductTabs({
         {selectedTab === 'shipping' && (
           <CommunitySection
             fundingId={fundingId}
-            communities={communities}
             authorId={authorId}
             currentUserId={currentUserId}
+            currentUserName={currentUserName}
+            currentUserProfileImage={currentUserProfileImage}
+            communities={communities}
           />
         )}
       </div>
