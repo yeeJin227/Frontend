@@ -517,7 +517,15 @@ export async function fetchProductDetail(productUuid: string): Promise<ProductDe
   if (!res.ok) throw new Error(json?.msg ?? '상품 상세 조회 실패');
 
   const data = json?.data;
-  const images = (data?.images ?? []).map((d: any) => ({
+
+  type ImageItem = {
+    url: string;
+    type: string;
+    s3Key: string;
+    originalFileName: string;
+  };
+
+    const images: ImageItem[] = (data?.images ?? []).map((d: ImageItem) => ({
     url: d.url,
     type: d.type,
     s3Key: d.s3Key,

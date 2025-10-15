@@ -96,7 +96,6 @@ function SearchContent() {
         <ResultHeader
           query={q || '전체'}
           total={products.length + artists.length + fundings.length}
-          onSort={() => {}}
         />
 
         {loading ? (
