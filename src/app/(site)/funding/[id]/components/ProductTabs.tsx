@@ -9,11 +9,10 @@ import { FundingNews, FundingCommunity } from '@/types/funding';
 
 interface ProductTabsProps {
   fundingId: number;
-  authorId: number;
-  currentUserId?: number;
-  currentUserName?: string;
-  currentUserProfileImage?: string;
   description: string;
+  authorId: number;
+  authorEmail: string;
+  currentUserId?: number;
   news: FundingNews[];
   communities: FundingCommunity[];
 }
@@ -22,11 +21,10 @@ export default function ProductTabs({
   fundingId,
   authorId,
   currentUserId,
-  currentUserName,
-  currentUserProfileImage,
   description,
   news,
   communities,
+  authorEmail,
 }: ProductTabsProps) {
   const searchParams = useSearchParams();
   const router = useRouter();
@@ -104,7 +102,11 @@ export default function ProductTabs({
         )}
 
         {selectedTab === 'shipping' && (
-          <CommunitySection fundingId={fundingId} communities={communities} />
+          <CommunitySection
+            fundingId={fundingId}
+            communities={communities}
+            authorEmail={authorEmail}
+          />
         )}
       </div>
     </div>
