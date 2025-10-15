@@ -1,22 +1,39 @@
 'use client';
 
+import { ApiResponse, CreateFundingResponse } from '@/types/funding';
+import { Category } from '@/types/funding.category';
 import { useState, useEffect } from 'react';
 
 type Props = {
   open: boolean;
   mode?: 'create' | 'edit';
   onClose: () => void;
+  categoryList: Category[];
 };
+
+interface FundingImage {
+  url: string;
+  type: 'MAIN' | 'DETAIL';
+  s3Key: string;
+  originalFileName: string;
+}
+
+const API_BASE_URL =
+  process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:8080';
 
 export default function FundingCreateModal(props: Props) {
   const { open } = props;
-  if (!open) return null; // 여기서는 Hook을 쓰지 않으므로 안전
+  if (!open) return null;
 
   return <FundingCreateModalInner {...props} />;
 }
 
-function FundingCreateModalInner({ mode = 'create', onClose }: Omit<Props, 'open'>) {
-  // --- 상태 관리 (항상 동일한 순서로 호출) ---
+function FundingCreateModalInner({
+  mode = 'create',
+  onClose,
+  categoryList,
+}: Omit<Props, 'open'>) {
+  // --- 상태 관리 ---
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [categoryId, setCategoryId] = useState('');
@@ -27,6 +44,9 @@ function FundingCreateModalInner({ mode = 'create', onClose }: Omit<Props, 'open
   const [stock, setStock] = useState<number | ''>('');
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
+
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   // 이미지 미리보기
   useEffect(() => {
@@ -39,25 +59,189 @@ function FundingCreateModalInner({ mode = 'create', onClose }: Omit<Props, 'open
     return () => URL.revokeObjectURL(url);
   }, [imageFile]);
 
-  const handleClose = () => onClose();
-
-  const handleSubmit = () => {
-    // 실제 API 연결은 없음 (UI 전용)
-    console.log({
-      title,
-      description,
-      categoryId,
-      imageUrl: imageFile?.name,
-      targetAmount,
-      price,
-      stock,
-      startDate,
-      endDate,
-    });
-    onClose();
+  const handleClose = () => {
+    if (!loading) {
+      onClose();
+    }
   };
 
-  // 아이콘 (닫기용)
+  // 날짜 포맷 변환: "2025-11-01T00:00" -> "2025-11-01 00:00:00"
+  const formatDateTime = (dateTimeLocal: string): string => {
+    if (!dateTimeLocal) return '';
+    return dateTimeLocal.replace('T', ' ') + ':00';
+  };
+
+  // 1. 이미지 업로드
+  const uploadImage = async (file: File): Promise<FundingImage[]> => {
+    try {
+      const formData = new FormData();
+      formData.append('files', file); // 파일 자체를 추가
+
+      console.log('이미지 업로드 시작:', file.name);
+
+      // types는 query parameter로 전달
+      const response = await fetch(
+        `${API_BASE_URL}/api/fundings/images?types=MAIN`,
+        {
+          method: 'POST',
+          credentials: 'include',
+          body: formData,
+          // headers에 Content-Type을 명시하지 않음 (브라우저가 자동으로 설정)
+        },
+      );
+
+      if (!response.ok) {
+        const errorText = await response.text().catch(() => '');
+        throw new Error(
+          `이미지 업로드 실패: ${response.status} ${errorText || response.statusText}`,
+        );
+      }
+
+      const result: ApiResponse<FundingImage[]> = await response.json();
+
+      if (result.resultCode !== '200') {
+        throw new Error(result.msg || '이미지 업로드 실패');
+      }
+
+      console.log('이미지 업로드 성공:', result.data);
+      return result.data;
+    } catch (error) {
+      console.error('이미지 업로드 에러:', error);
+      if (error instanceof Error) {
+        throw new Error(`이미지 업로드 중 오류: ${error.message}`);
+      }
+      throw new Error('이미지 업로드 중 알 수 없는 오류가 발생했습니다.');
+    }
+  };
+
+  // 2. 펀딩 생성
+  const createFunding = async (
+    imageData: FundingImage[],
+  ): Promise<CreateFundingResponse> => {
+    try {
+      const payload = {
+        title,
+        description,
+        categoryId: Number(categoryId),
+        imageUrl: imageData[0]?.url || '',
+        targetAmount,
+        price,
+        stock: stock === '' ? null : Number(stock),
+        startDate: formatDateTime(startDate),
+        endDate: formatDateTime(endDate),
+        images: imageData,
+      };
+
+      console.log('펀딩 생성 요청:', payload);
+
+      const response = await fetch(`${API_BASE_URL}/api/fundings`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        credentials: 'include',
+        body: JSON.stringify(payload),
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text().catch(() => '');
+        throw new Error(
+          `펀딩 생성 실패: ${response.status} ${errorText || response.statusText}`,
+        );
+      }
+
+      const result: ApiResponse<CreateFundingResponse> = await response.json();
+
+      console.log(result);
+      if (result.resultCode !== '201') {
+        throw new Error(result.msg || '펀딩 생성 실패');
+      }
+
+      console.log('펀딩 생성 성공:', result.data);
+      return result.data;
+    } catch (error) {
+      console.error('펀딩 생성 에러:', error);
+      if (error instanceof Error) {
+        throw new Error(`펀딩 생성 중 오류: ${error.message}`);
+      }
+      throw new Error('펀딩 생성 중 알 수 없는 오류가 발생했습니다.');
+    }
+  };
+
+  // 제출 핸들러
+  const handleSubmit = async () => {
+    setError(null);
+
+    // 필수 입력 검증
+    if (!title.trim()) {
+      setError('펀딩 제목을 입력해주세요.');
+      return;
+    }
+    if (!description.trim()) {
+      setError('펀딩 설명을 입력해주세요.');
+      return;
+    }
+    if (!categoryId) {
+      setError('카테고리를 선택해주세요.');
+      return;
+    }
+    if (!imageFile) {
+      setError('대표 이미지를 선택해주세요.');
+      return;
+    }
+    if (price <= 0) {
+      setError('가격을 입력해주세요.');
+      return;
+    }
+    if (targetAmount <= 0) {
+      setError('목표 금액을 입력해주세요.');
+      return;
+    }
+    if (!startDate) {
+      setError('시작일을 선택해주세요.');
+      return;
+    }
+    if (!endDate) {
+      setError('종료일을 선택해주세요.');
+      return;
+    }
+
+    try {
+      setLoading(true);
+
+      // 1. 이미지 업로드
+      const imageData = await uploadImage(imageFile);
+      // const imageData: FundingImage[] = [
+      //   {
+      //     url: 'https://morimori-files-bucket.s3.ap-northeast-2.amazonaws.com/funding-images/4bf1333e-465e-4ed2-8e87-518aa7f15e37.jpg',
+      //     type: 'MAIN',
+      //     s3Key: 'funding-images/4bf1333e-465e-4ed2-8e87-518aa7f15e37.jpg',
+      //     originalFileName: 'test2.JPG',
+      //   },
+      // ];
+
+      // 2. 펀딩 생성
+      await createFunding(imageData);
+
+      // 성공
+      alert('펀딩이 생성되었습니다!');
+      onClose();
+
+      // 필요시 페이지 새로고침 또는 데이터 갱신
+      window.location.reload();
+    } catch (err) {
+      console.error('펀딩 생성 에러:', err);
+      setError(
+        err instanceof Error
+          ? err.message
+          : '펀딩 생성 중 오류가 발생했습니다.',
+      );
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // 아이콘
   const IconX = () => (
     <svg width="16" height="16" viewBox="0 0 24 24" aria-hidden>
       <path
@@ -86,8 +270,9 @@ function FundingCreateModalInner({ mode = 'create', onClose }: Omit<Props, 'open
               {mode === 'edit' ? '펀딩 수정' : '새 펀딩 작성'}
             </h2>
             <button
-              className="cursor-pointer rounded p-2 hover:bg-black/5"
+              className="cursor-pointer rounded p-2 hover:bg-black/5 disabled:opacity-50"
               onClick={handleClose}
+              disabled={loading}
               aria-label="닫기"
             >
               <IconX />
@@ -97,6 +282,13 @@ function FundingCreateModalInner({ mode = 'create', onClose }: Omit<Props, 'open
 
         {/* 본문 */}
         <div className="flex-1 overflow-y-auto px-6 py-5 space-y-8">
+          {/* 에러 메시지 */}
+          {error && (
+            <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded">
+              {error}
+            </div>
+          )}
+
           {/* 기본정보 */}
           <section className="space-y-4">
             <h3 className="text-base font-semibold">기본 정보</h3>
@@ -108,7 +300,8 @@ function FundingCreateModalInner({ mode = 'create', onClose }: Omit<Props, 'open
                   onChange={(e) => setTitle(e.target.value)}
                   placeholder="펀딩 제목을 입력하세요"
                   maxLength={50}
-                  className="rounded border border-gray-300 px-3 py-2 text-sm"
+                  disabled={loading}
+                  className="rounded border border-gray-300 px-3 py-2 text-sm disabled:bg-gray-100"
                 />
               </label>
 
@@ -118,7 +311,8 @@ function FundingCreateModalInner({ mode = 'create', onClose }: Omit<Props, 'open
                   value={description}
                   onChange={(e) => setDescription(e.target.value)}
                   placeholder="펀딩 내용을 작성하세요"
-                  className="rounded border border-gray-300 px-3 py-2 text-sm min-h-[120px]"
+                  disabled={loading}
+                  className="rounded border border-gray-300 px-3 py-2 text-sm min-h-[120px] disabled:bg-gray-100"
                 />
               </label>
 
@@ -127,12 +321,15 @@ function FundingCreateModalInner({ mode = 'create', onClose }: Omit<Props, 'open
                 <select
                   value={categoryId}
                   onChange={(e) => setCategoryId(e.target.value)}
-                  className="rounded border border-gray-300 px-3 py-2 text-sm"
+                  disabled={loading}
+                  className="rounded border border-gray-300 px-3 py-2 text-sm disabled:bg-gray-100"
                 >
-                  <option value="">선택하세요</option>
-                  <option value="1">문구/스티커</option>
-                  <option value="2">키링/악세서리</option>
-                  <option value="3">패브릭</option>
+                  <option value="">카테고리를 선택하세요</option>
+                  {categoryList.map((cat) => (
+                    <option key={cat.id} value={cat.id}>
+                      {cat.categoryName}
+                    </option>
+                  ))}
                 </select>
               </label>
             </div>
@@ -144,11 +341,12 @@ function FundingCreateModalInner({ mode = 'create', onClose }: Omit<Props, 'open
           <section className="space-y-3">
             <h3 className="text-base font-semibold">대표 이미지 *</h3>
             <div>
-              <label className="block cursor-pointer w-fit border border-primary px-3 py-2 rounded text-sm hover:bg-primary/10">
+              <label className="block cursor-pointer w-fit border border-primary px-3 py-2 rounded text-sm hover:bg-primary/10 disabled:opacity-50 disabled:cursor-not-allowed">
                 이미지 선택
                 <input
                   type="file"
-                  accept="image/*"
+                  accept="image/png, image/jpeg"
+                  disabled={loading}
                   className="hidden"
                   onChange={(e) => {
                     const file = e.target.files?.[0] ?? null;
@@ -184,7 +382,8 @@ function FundingCreateModalInner({ mode = 'create', onClose }: Omit<Props, 'open
                   min={1}
                   value={price}
                   onChange={(e) => setPrice(Number(e.target.value) || 0)}
-                  className="rounded border border-gray-300 px-3 py-2 text-sm"
+                  disabled={loading}
+                  className="rounded border border-gray-300 px-3 py-2 text-sm disabled:bg-gray-100"
                 />
               </label>
 
@@ -195,7 +394,8 @@ function FundingCreateModalInner({ mode = 'create', onClose }: Omit<Props, 'open
                   min={1}
                   value={targetAmount}
                   onChange={(e) => setTargetAmount(Number(e.target.value) || 0)}
-                  className="rounded border border-gray-300 px-3 py-2 text-sm"
+                  disabled={loading}
+                  className="rounded border border-gray-300 px-3 py-2 text-sm disabled:bg-gray-100"
                 />
               </label>
 
@@ -205,9 +405,12 @@ function FundingCreateModalInner({ mode = 'create', onClose }: Omit<Props, 'open
                   type="number"
                   min={0}
                   value={stock}
-                  onChange={(e) => setStock(e.target.value ? Number(e.target.value) : '')}
+                  onChange={(e) =>
+                    setStock(e.target.value ? Number(e.target.value) : '')
+                  }
                   placeholder="비워두면 무제한"
-                  className="rounded border border-gray-300 px-3 py-2 text-sm"
+                  disabled={loading}
+                  className="rounded border border-gray-300 px-3 py-2 text-sm disabled:bg-gray-100"
                 />
               </label>
             </div>
@@ -225,7 +428,8 @@ function FundingCreateModalInner({ mode = 'create', onClose }: Omit<Props, 'open
                   type="datetime-local"
                   value={startDate}
                   onChange={(e) => setStartDate(e.target.value)}
-                  className="rounded border border-gray-300 px-3 py-2 text-sm"
+                  disabled={loading}
+                  className="rounded border border-gray-300 px-3 py-2 text-sm disabled:bg-gray-100"
                 />
               </label>
 
@@ -235,7 +439,8 @@ function FundingCreateModalInner({ mode = 'create', onClose }: Omit<Props, 'open
                   type="datetime-local"
                   value={endDate}
                   onChange={(e) => setEndDate(e.target.value)}
-                  className="rounded border border-gray-300 px-3 py-2 text-sm"
+                  disabled={loading}
+                  className="rounded border border-gray-300 px-3 py-2 text-sm disabled:bg-gray-100"
                 />
               </label>
             </div>
@@ -246,15 +451,39 @@ function FundingCreateModalInner({ mode = 'create', onClose }: Omit<Props, 'open
         <div className="sticky bottom-0 z-10 bg-white px-6 py-4 border-t flex justify-end gap-2">
           <button
             onClick={handleClose}
-            className="px-3 py-2 rounded-md border border-primary text-primary text-sm font-semibold"
+            disabled={loading}
+            className="px-3 py-2 rounded-md border border-primary text-primary text-sm font-semibold disabled:opacity-50 disabled:cursor-not-allowed"
           >
             작성취소
           </button>
           <button
             onClick={handleSubmit}
-            className="px-3 py-2 rounded-md border border-primary bg-primary text-white text-sm font-semibold"
+            disabled={loading}
+            className="px-3 py-2 rounded-md border border-primary bg-primary text-white text-sm font-semibold disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
           >
-            {mode === 'edit' ? '수정하기' : '작성하기'}
+            {loading && (
+              <svg
+                className="animate-spin h-4 w-4"
+                xmlns="http://www.w3.org/2000/svg"
+                fill="none"
+                viewBox="0 0 24 24"
+              >
+                <circle
+                  className="opacity-25"
+                  cx="12"
+                  cy="12"
+                  r="10"
+                  stroke="currentColor"
+                  strokeWidth="4"
+                />
+                <path
+                  className="opacity-75"
+                  fill="currentColor"
+                  d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                />
+              </svg>
+            )}
+            {loading ? '작성 중...' : mode === 'edit' ? '수정하기' : '작성하기'}
           </button>
         </div>
       </div>
