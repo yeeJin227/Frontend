@@ -1,4 +1,4 @@
-// app/artist/(dashboard)/orders/cancel/adapters.ts (예시 경로)
+
 
 import type { ArtistCancellationRequest } from '@/types/artistDashboard';
 
