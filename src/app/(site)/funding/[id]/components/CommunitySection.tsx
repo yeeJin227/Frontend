@@ -11,6 +11,7 @@ import { useAuthStore } from '@/stores/authStore';
 interface CommunitySectionProps {
   fundingId: number;
   communities: FundingCommunity[];
+  authorEmail: string; // 펀딩 작성자 이메일
 }
 
 const API_BASE_URL = (
@@ -20,6 +21,7 @@ const API_BASE_URL = (
 export default function CommunitySection({
   fundingId,
   communities: initialCommunities,
+  authorEmail, // prop으로 받습니다.
 }: CommunitySectionProps) {
   const [newMessage, setNewMessage] = useState('');
   const [communities, setCommunities] =
@@ -171,6 +173,8 @@ export default function CommunitySection({
         ) : (
           communities.map((community) => {
             const isOwner = userProfile?.email === community.writerEmail;
+            // 펀딩 작성자(작가)와 댓글 작성자가 동일한지 확인
+            const isAuthor = community.writerEmail === authorEmail;
 
             return (
               <div
@@ -194,10 +198,17 @@ export default function CommunitySection({
                       )}
                     </div>
                     <div>
+                      {/* ⭐️ 이 부분을 수정했습니다. */}
                       <div className="flex items-center gap-2">
                         <span className="font-medium text-sm">
                           {community.writerName}
                         </span>
+                        {/* 작가 뱃지 조건부 렌더링 */}
+                        {isAuthor && (
+                          <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-primary text-white">
+                            작가
+                          </span>
+                        )}
                       </div>
                       <div className="text-xs text-gray-500">
                         {formatTimeAgo(community.createDate)}

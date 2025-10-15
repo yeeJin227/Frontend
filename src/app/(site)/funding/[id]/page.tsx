@@ -80,8 +80,8 @@ export default async function FundingDetailPage({
   }
 
   const currentUserId = currentUser?.userId;
-  const currentUserName = currentUser?.name;
-  const currentUserProfileImage = currentUser?.profileImageUrl;
+  // const currentUserName = currentUser?.name;
+  // const currentUserProfileImage = currentUser?.profileImageUrl;
 
   // 이미지 배열 구성
   const productImages = funding.images;
@@ -114,6 +114,7 @@ export default async function FundingDetailPage({
             news={funding.news}
             communities={funding.communities}
             authorId={funding.author.id}
+            authorEmail={funding.author.email}
             currentUserId={currentUserId}
           />
 
