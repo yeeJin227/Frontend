@@ -29,7 +29,7 @@ export function MainHeroSlider() {
   }, []);
 
   return (
-    <section className="w-full h-[300px] relative overflow-hidden">
+    <section className="w-full h-[300px] relative overflow-hidden bg-[#f7f7f7]">
       <div
         className="flex transition-transform duration-500 ease-in-out h-full"
         style={{ transform: `translateX(-${currentSlide * 100}%)` }}
@@ -37,15 +37,19 @@ export function MainHeroSlider() {
         {heroImages.map(({ id, Img }) => (
           <div
             key={id}
-            className="min-w-full h-full relative flex items-center justify-center"
+            className="min-w-full h-full flex items-center justify-center relative"
           >
-            <Image
-              src={Img}
-              alt={`슬라이드 ${id}`}
-              className="absolute inset-0 object-cover w-full h-full"
-              fill
-              priority={id === 1}
-            />
+            <div className="absolute inset-0 bg-white" />
+
+            <div className="relative z-10 w-full max-w-[1200px] mx-auto flex items-center justify-center h-full px-6">
+              <Image
+                src={Img}
+                alt={`슬라이드 ${id}`}
+                className="object-contain w-full h-full"
+                priority={id === 1}
+              />
+
+            </div>
           </div>
         ))}
       </div>
@@ -53,7 +57,7 @@ export function MainHeroSlider() {
       {/* 이전 버튼 */}
       <button
         onClick={goToPrev}
-        className="absolute left-8 top-1/2 transform -translate-y-1/2 z-10 bg-white bg-opacity-80 hover:bg-opacity-100 rounded-full p-3 shadow-lg transition-all"
+        className="absolute left-8 top-1/2 transform -translate-y-1/2 z-20 bg-white bg-opacity-80 hover:bg-opacity-100 rounded-full p-3 shadow-lg transition-all"
         aria-label="이전 슬라이드"
       >
         <svg
@@ -69,7 +73,7 @@ export function MainHeroSlider() {
       {/* 다음 버튼 */}
       <button
         onClick={goToNext}
-        className="absolute right-8 top-1/2 transform -translate-y-1/2 z-10 bg-white bg-opacity-80 hover:bg-opacity-100 rounded-full p-3 shadow-lg transition-all"
+        className="absolute right-8 top-1/2 transform -translate-y-1/2 z-20 bg-white bg-opacity-80 hover:bg-opacity-100 rounded-full p-3 shadow-lg transition-all"
         aria-label="다음 슬라이드"
       >
         <svg
@@ -82,7 +86,8 @@ export function MainHeroSlider() {
         </svg>
       </button>
 
-      <div className="absolute bottom-4 left-1/2 transform -translate-x-1/2 flex gap-2">
+      {/* 인디케이터 */}
+      <div className="absolute bottom-4 left-1/2 transform -translate-x-1/2 flex gap-2 z-20">
         {heroImages.map((_, index) => (
           <button
             key={index}

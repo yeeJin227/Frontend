@@ -7,18 +7,16 @@ import Scrap from '@/assets/icon/scrap.svg';
 import RightGreenArrow from '@/assets/icon/rightgreenarrow.svg';
 import { fetchProductArtistInfo, fetchArtistPublicProfile } from '@/services/productArtist';
 import type { ProductArtistInfo } from '@/types/productArtist';
-import { ArtistPublicProfile } from '@/types/artistDashboard';
-
+import type { ArtistPublicProfile } from '@/types/artistDashboard';
 
 function fmt(n?: number | null) {
   if (typeof n !== 'number' || Number.isNaN(n)) return '0';
   return n.toLocaleString();
 }
 
-// artistPageUrl 또는 임의 문자열에서 숫자 ID 추출
 function extractArtistId(input?: string | null): number | null {
   if (!input) return null;
-  const m = String(input).match(/(?:artist\/|creator-)(\d+)/); // /artist/123  또는 creator-123
+  const m = String(input).match(/(?:artist\/|creator-|forest\/)(\d+)/);
   return m ? Number(m[1]) : null;
 }
 
@@ -35,18 +33,13 @@ export default function ArtistInfo({ productUuid }: { productUuid?: string }) {
       if (!productUuid) return;
       try {
         setError(null);
-
-        // 1) 상품 상세 → 작가 기본정보
         const data = await fetchProductArtistInfo(productUuid);
         if (!active) return;
         setArtist(data);
 
-        // 2) artistId 확보: 응답에 없으면 URL에서 추출
         const resolvedArtistId =
-          (data?.artistId as number | undefined) ??
-          extractArtistId(data?.artistPageUrl);
+          (data?.artistId as number | undefined) ?? extractArtistId(data?.artistPageUrl);
 
-        // 3) 공개 프로필 조회 
         if (resolvedArtistId) {
           const profile = await fetchArtistPublicProfile(resolvedArtistId);
           if (!active) return;
@@ -69,20 +62,26 @@ export default function ArtistInfo({ productUuid }: { productUuid?: string }) {
     };
   }, [productUuid]);
 
-
-  const artistIdForRoute = useMemo<number | null>(() => {
-    return publicProfile?.artistId ?? extractArtistId(artist?.artistPageUrl) ?? null;
-  }, [publicProfile?.artistId, artist?.artistPageUrl]);
+  const artistId = useMemo<number | null>(() => {
+    return (
+      publicProfile?.artistId ??
+      artist?.artistId ??
+      extractArtistId(artist?.artistPageUrl) ??
+      null
+    );
+  }, [publicProfile?.artistId, artist?.artistId, artist?.artistPageUrl]);
 
   const artistName = publicProfile?.artistName ?? artist?.artistName ?? '작가명';
   const follower = fmt(publicProfile?.followerCount ?? artist?.followerCount ?? 0);
   const since =
     artist?.approvedDate ??
-    (publicProfile?.createdAt ? new Date(publicProfile.createdAt).toLocaleDateString('ko-KR') : '-');
+    (publicProfile?.createdAt
+      ? new Date(publicProfile.createdAt).toLocaleDateString('ko-KR')
+      : '-');
   const desc =
     publicProfile?.description ??
     artist?.description ??
-    '작가 소개입니다. 작가 소개입니다. 작가 소개입니다. 작가 소개입니다. 작가 소개입니다. 작가 소개입니다.';
+    '작가 소개입니다. 작가 소개입니다. 작가 소개입니다.';
   const profileImg = publicProfile?.profileImageUrl ?? artist?.profileImageUrl ?? null;
 
   return (
@@ -108,10 +107,11 @@ export default function ArtistInfo({ productUuid }: { productUuid?: string }) {
           </div>
         </div>
 
+        {/* 오른쪽 프로필 + Scrap */}
         <div className="relative flex flex-col items-center">
           <div className="my-3.5">
             <button type="button" className="absolute right-0 top-0">
-              <Scrap />
+              <Scrap width={20} height={20} className="text-gray-400" />
             </button>
 
             {profileImg ? (
@@ -125,11 +125,12 @@ export default function ArtistInfo({ productUuid }: { productUuid?: string }) {
             )}
           </div>
 
+          {/* 작가 페이지 이동 버튼 */}
           <button
             type="button"
-            className="flex justify-center items-center gap-2 bg-white border border-primary rounded-sm px-3.5 py-2 text-primary font-semibold cursor-pointer transition hover:bg-primary-20 hover:text-white"
+            className="flex justify-center items-center gap-2 mt-2 bg-white border border-primary rounded-sm px-3.5 py-2 text-primary font-semibold cursor-pointer transition hover:bg-primary-20 hover:text-white"
             onClick={() => {
-              if (artistIdForRoute) router.push(`/forest/creator-${artistIdForRoute}`);
+              if (artistId) router.push(`/forest/creator-${artistId}`);
             }}
           >
             작가페이지

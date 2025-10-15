@@ -1,8 +1,9 @@
-
 'use client';
 
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
+import { useEffect, useState } from 'react';
 import Hamburger from '@/assets/icon/hamburger.svg';
+import { fetchTagsClient } from '@/lib/client/tags.client';
 
 type Tag = { id: number; tagName: string };
 
@@ -24,8 +25,8 @@ function withResetPage(sp: URLSearchParams) {
   return next;
 }
 
-// 정적 태그 
-export const STYLE_TAGS: Tag[] = [
+// 초기 정적 태그
+const STATIC_TAGS: Tag[] = [
   { id: 1, tagName: '귀염' },
   { id: 2, tagName: '음식' },
   { id: 3, tagName: '감성' },
@@ -36,82 +37,52 @@ export const STYLE_TAGS: Tag[] = [
   { id: 8, tagName: '빈티지' },
 ];
 
-// 가격/배송 옵션
-const PRICE_OPTIONS = [
-  { label: '1,000원 이하', min: 0, max: 1000 },
-  { label: '1,000원~2,000원', min: 1000, max: 2000 },
-  { label: '2,000원~3,000원', min: 2000, max: 3000 },
-  { label: '3,000원 이상', min: 3000, max: 999999 },
-];
-
-const SHIPPING_OPTIONS = [
-  { label: '무료배송', value: 'FREE' },
-  { label: '조건부 무료배송', value: 'CONDITIONAL' },
-  { label: '유료배송', value: 'PAID' },
-];
-
-function SquareCheckbox({
-  label,
-  checked,
-  onChange,
-}: {
-  label: string;
-  checked?: boolean;
-  onChange?: (e: React.ChangeEvent<HTMLInputElement>) => void;
-}) {
-  return (
-    <label className="flex items-center gap-2 cursor-pointer select-none">
-      <input
-        type="checkbox"
-        checked={checked}
-        onChange={onChange}
-        className="w-[14px] h-[14px] border-2 border-gray-200 rounded-[2px] bg-white shrink-0 transition-colors cursor-pointer"
-      />
-      <span className="text-sm leading-4">{label}</span>
-    </label>
-  );
-}
-
 export default function CategorySideBarClient({ title }: { title: string }) {
   const pathname = usePathname();
   const router = useRouter();
   const sp = useSearchParams();
 
-  // CSV/다중키 모두 지원
-  const selectedTags = new Set(sp.getAll('tagIds').flatMap((v) => v.split(',')));
-  const minPrice = sp.get('minPrice');
-  const maxPrice = sp.get('maxPrice');
-  const deliveryType = sp.get('deliveryType');
+  const [dynamicTags, setDynamicTags] = useState<Tag[]>([]);
 
-  // 스타일(태그) → URL엔 CSV 한 건으로 저장
+  // 서버에서 동적 태그 불러오기
+  const loadTags = async () => {
+    try {
+      const res = await fetchTagsClient();
+      setDynamicTags(res);
+    } catch (e) {
+      console.error('태그 불러오기 실패', e);
+    }
+  };
+
+  // 최초 로드 + 태그 생성 시 새로고침
+  useEffect(() => {
+    loadTags();
+    const handleNewTag = (e: Event) => {
+      console.log('[Sidebar] 새 태그 생성 감지', e);
+      loadTags();
+    };
+    window.addEventListener('tag:created', handleNewTag);
+    return () => window.removeEventListener('tag:created', handleNewTag);
+  }, []);
+
+  // 전체 태그 (정적 + 동적 병합)
+  const STYLE_TAGS = [...STATIC_TAGS, ...dynamicTags];
+
+  // 선택된 상태
+  const selectedTags = new Set(sp.getAll('tagIds').flatMap((v) => v.split(',')));
+
+  // 태그 토글 (다중 append 방식)
   const toggleTag = (id: number) => {
     const next = new Set(selectedTags);
     const k = String(id);
     if (next.has(k)) next.delete(k);
     else next.add(k);
 
-    const csv = Array.from(next).join(','); // "1,5,8"
-    const qs = buildQueryString(withResetPage(new URLSearchParams(sp)), {
-      tagIds: csv || null,
-    });
-    router.push(`${pathname}?${qs}`);
-  };
+    const qs = new URLSearchParams(withResetPage(new URLSearchParams(sp)));
+    qs.delete('tagIds');
+    Array.from(next).forEach((tagId) => qs.append('tagIds', tagId));
 
-  const setPriceRange = (min: number, max: number) => {
-    const isActive = minPrice === String(min) && maxPrice === String(max);
-    const qs = buildQueryString(withResetPage(new URLSearchParams(sp)), {
-      minPrice: isActive ? null : min,
-      maxPrice: isActive ? null : max,
-    });
-    router.push(`${pathname}?${qs}`);
-  };
-
-  const setDelivery = (value: string) => {
-    const isActive = deliveryType === value;
-    const qs = buildQueryString(withResetPage(new URLSearchParams(sp)), {
-      deliveryType: isActive ? null : value,
-    });
-    router.push(`${pathname}?${qs}`);
+    router.push(`${pathname}?${qs.toString()}`);
   };
 
   return (
@@ -129,45 +100,15 @@ export default function CategorySideBarClient({ title }: { title: string }) {
           <h2 className="font-bold text-[18px] mb-3">스타일</h2>
           <div className="grid grid-cols-2 gap-x-8 gap-y-2">
             {STYLE_TAGS.map((opt) => (
-              <SquareCheckbox
-                key={opt.id}
-                label={opt.tagName}
-                checked={selectedTags.has(String(opt.id))}
-                onChange={() => toggleTag(opt.id)}
-              />
-            ))}
-          </div>
-        </section>
-
-        {/* 가격대 */}
-        <section>
-          <h2 className="font-bold text-[18px] mb-3">가격대</h2>
-          <div className="space-y-2">
-            {PRICE_OPTIONS.map((opt) => {
-              const isActive = minPrice === String(opt.min) && maxPrice === String(opt.max);
-              return (
-                <SquareCheckbox
-                  key={opt.label}
-                  label={opt.label}
-                  checked={isActive}
-                  onChange={() => setPriceRange(opt.min, opt.max)}
+              <label key={opt.id} className="flex items-center gap-2 cursor-pointer select-none">
+                <input
+                  type="checkbox"
+                  checked={selectedTags.has(String(opt.id))}
+                  onChange={() => toggleTag(opt.id)}
+                  className="w-[14px] h-[14px] border-2 border-gray-200 rounded-[2px] bg-white shrink-0 transition-colors cursor-pointer"
                 />
-              );
-            })}
-          </div>
-        </section>
-
-        {/* 배송비 */}
-        <section>
-          <h2 className="font-bold text-[18px] mb-3">배송비</h2>
-          <div className="space-y-2">
-            {SHIPPING_OPTIONS.map((opt) => (
-              <SquareCheckbox
-                key={opt.value}
-                label={opt.label}
-                checked={deliveryType === opt.value}
-                onChange={() => setDelivery(opt.value)}
-              />
+                <span className="text-sm leading-4">{opt.tagName}</span>
+              </label>
             ))}
           </div>
         </section>

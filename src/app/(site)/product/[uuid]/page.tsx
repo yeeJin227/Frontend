@@ -181,7 +181,7 @@ export default function Page() {
             )}
           </div>
 
-          <ProductOptions />
+          <ProductOptions productUuid={uuid} />
         </section>
       </main>
 
