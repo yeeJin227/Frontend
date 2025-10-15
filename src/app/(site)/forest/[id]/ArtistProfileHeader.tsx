@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { useEffect, useMemo, useRef, useState, useTransition } from 'react';
 import Button from '@/components/Button';
 import { useToast } from '@/components/ToastProvider';
-import { followArtist } from '@/services/productArtist';
+import { followArtist, unfollowArtist } from '@/services/productArtist';
 import type { ArtistPublicProfile } from '@/types/artistDashboard';
 import { useAuthStore } from '@/stores/authStore';
 
@@ -121,6 +121,42 @@ export default function ArtistProfileHeader({ profile, artistId }: ArtistProfile
     });
   };
 
+  const handleUnfollow = () => {
+    if (pending || !isFollowing) {
+      return;
+    }
+
+    if (!accessToken) {
+      toast.error('로그인 후 이용해 주세요.');
+      return;
+    }
+
+    const requestArtistId = artistIdRef.current;
+    const previousFollowerCount = followerCount;
+
+    setIsFollowing(false);
+    setFollowerCount((prev) => (artistIdRef.current === requestArtistId ? Math.max(0, prev - 1) : prev));
+
+    startTransition(async () => {
+      try {
+        await unfollowArtist(requestArtistId, { accessToken });
+
+        if (artistIdRef.current !== requestArtistId) {
+          return;
+        }
+
+        toast.success('작가 팔로우를 해제했습니다.');
+      } catch (error) {
+        if (artistIdRef.current === requestArtistId) {
+          setIsFollowing(true);
+          setFollowerCount(previousFollowerCount);
+        }
+        const message = (error instanceof Error) ? error.message : '작가 언팔로우에 실패했습니다.';
+        toast.error(message);
+      }
+    });
+  };
+
   return (
     <section className="rounded-3xl">
       <div className="flex flex-col items-center gap-6 text-center md:flex-row md:text-left">
@@ -152,10 +188,10 @@ export default function ArtistProfileHeader({ profile, artistId }: ArtistProfile
             </h1>
             <Button
               variant={isFollowing ? 'outline' : 'primary'}
-              onClick={handleFollow}
-              disabled={isFollowing || pending}
+              onClick={isFollowing ? handleUnfollow : handleFollow}
+              disabled={pending}
             >
-              {isFollowing ? '팔로잉' : pending ? '팔로우 중...' : '팔로우하기'}
+              {pending ? (isFollowing ? '언팔로우 중...' : '팔로우 중...') : isFollowing ? '팔로잉' : '팔로우하기'}
             </Button>
           </div>
 

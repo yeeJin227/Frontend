@@ -29,6 +29,12 @@ export type FollowArtistResponse = {
   isFollowing: boolean;
 };
 
+export type UnfollowArtistResponse = {
+  artistId: number;
+  artistName?: string;
+  unfollowed: boolean;
+};
+
 
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL;
 
@@ -203,4 +209,40 @@ export async function followArtist(
     followedAt: String(payload.followedAt ?? ''),
     isFollowing: Boolean(payload.isFollowing ?? true),
   } satisfies FollowArtistResponse;
+}
+
+export async function unfollowArtist(
+  artistId: number,
+  options?: { accessToken?: string },
+): Promise<UnfollowArtistResponse> {
+  const headers: Record<string, string> = { accept: 'application/json' };
+  if (options?.accessToken) {
+    headers.Authorization = `Bearer ${options.accessToken}`;
+  }
+
+  const res = await fetch(`${API_BASE}/api/follows/artists/${artistId}`, {
+    method: 'DELETE',
+    headers,
+    credentials: 'include',
+  });
+
+  const json = (await res
+    .json()
+    .catch(() => ({}))) as { msg?: string; data?: { artistId?: number; artistName?: string } };
+
+  if (!res.ok) {
+    const message = (json && json.msg) || '작가 언팔로우에 실패했습니다.';
+    const error: FetchError = new Error(message);
+    error.status = res.status;
+    throw error;
+  }
+
+  const payload = json.data ?? {};
+  const normalizedId = Number(payload.artistId ?? artistId);
+
+  return {
+    artistId: normalizedId,
+    artistName: typeof payload.artistName === 'string' ? payload.artistName : undefined,
+    unfollowed: true,
+  } satisfies UnfollowArtistResponse;
 }
