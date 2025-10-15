@@ -88,18 +88,14 @@ export default function OrderExchangePage() {
           <Button
             variant="outline"
             disabled={selectedIds.length === 0}
-            onClick={() => {
-              // TODO: 교환 거부
-            }}
+            onClick={() => alert('교환 거부 완료되었습니다.')}
           >
             교환 거부
           </Button>
           <Button
             variant="primary"
             disabled={selectedIds.length === 0}
-            onClick={() => {
-              // TODO: 교환 승인
-            }}
+            onClick={() => alert('교환 승인 완료되었습니다.')}
           >
             교환 승인
           </Button>

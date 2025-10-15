@@ -1,49 +1,133 @@
 'use client';
 
-import AdminDataTable, { AdminTableColumn } from '@/components/admin/AdminDataTable';
+import { useEffect, useState } from 'react';
+import { CashTransaction, fetchCashHistory } from '@/services/cash';
+import ArtistDataTable, { ArtistTableColumn } from '@/components/artist/ArtistDataTable';
+
 
 type HistoryRow = {
-  date: string;  
+  date: string;
   type: '정산금 입금' | '모리캐시 환전';
-  depositAmount: number; // 정산(입금)금액
-  withdrawAmount: number; // 환전 금액
-  balance: number;    // 잔액
-  method: string;     // 모리캐시 / 계좌이체
+  depositAmount: number;
+  withdrawAmount: number;
+  balance: number;
+  method: string;
 };
 
-const columns: AdminTableColumn<HistoryRow>[] = [
-  { key: 'date', header: '충전일', align: 'center', sortable: true },
+
+const columns: ArtistTableColumn<HistoryRow>[] = [
+  { key: 'date', header: '거래일자', align: 'center', sortable: true },
   { key: 'type', header: '구분', align: 'center', sortable: true },
-  { key: 'depositAmount', header: '정산(입금)금액', align: 'right', sortable: true, render: r => `₩ ${r.depositAmount.toLocaleString()}` },
-  { key: 'withdrawAmount', header: '환전 금액', align: 'right', sortable: true, render: r => `₩ ${r.withdrawAmount.toLocaleString()}` },
-  { key: 'balance', header: '잔액', align: 'right', sortable: true, render: r => `₩ ${r.balance.toLocaleString()}` },
-  { key: 'method', header: '입금/환전수단', align: 'center', sortable: true },
+  {
+    key: 'depositAmount',
+    header: '정산(입금)금액',
+    align: 'right',
+    render: (r) => `₩ ${r.depositAmount.toLocaleString()}`,
+  },
+  {
+    key: 'withdrawAmount',
+    header: '환전 금액',
+    align: 'right',
+    render: (r) => `₩ ${r.withdrawAmount.toLocaleString()}`,
+  },
+  {
+    key: 'balance',
+    header: '잔액',
+    align: 'right',
+    render: (r) => `₩ ${r.balance.toLocaleString()}`,
+  },
+  { key: 'method', header: '입금/환전수단', align: 'center' },
 ];
 
-const rows: HistoryRow[] = [
-  { date: '2025.09.24', type: '정산금 입금',   depositAmount: 10000, withdrawAmount: 0,     balance: 10000, method: '모리캐시' },
-  { date: '2025.09.23', type: '모리캐시 환전', depositAmount: 0,     withdrawAmount: 64000, balance: 0,     method: '계좌이체' },
-  { date: '2025.09.22', type: '정산금 입금',   depositAmount: 64000, withdrawAmount: 0,     balance: 64000, method: '모리캐시' },
-];
 
 export default function SettlementHistoryPage() {
+  const [rows, setRows] = useState<HistoryRow[]>([]);
+  const [page, setPage] = useState(0);
+  const [totalPages, setTotalPages] = useState(1);
+  const [loading, setLoading] = useState(false);
+
+
+  // api 호출 
+  const load = async () => {
+    setLoading(true);
+    try {
+      const data = await fetchCashHistory({ page, size: 10 });
+
+      // API → UI 형태로 매핑
+      const mapped: HistoryRow[] = data.content.map((t: CashTransaction) => ({
+        date: new Date(t.createdAt).toLocaleDateString('ko-KR'),
+        type: t.transactionType === 'CHARGING' ? '정산금 입금' : '모리캐시 환전',
+        depositAmount: t.transactionType === 'CHARGING' ? t.amount : 0,
+        withdrawAmount: t.transactionType === 'EXCHANGE' ? t.amount : 0,
+        balance: t.balanceAfter,
+        method: t.pgProvider === 'MORI_CASH' ? '모리캐시' : '계좌이체',
+      }));
+
+      setRows(mapped);
+      setTotalPages(data.totalPages);
+    } catch (err) {
+      console.error('캐시 내역 불러오기 실패:', err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+
+  // page 변경 마다 재호출
+  useEffect(() => {
+    load();
+  }, [page]);
+
+  
+  // 페이지 이동 핸들러
+  const handlePrev = () => setPage((p) => Math.max(0, p - 1));
+  const handleNext = () => setPage((p) => Math.min(totalPages - 1, p + 1));
+
   return (
-    <>
+    <div>
       <h3 className="mb-6 text-2xl font-bold">입금/환전 내역</h3>
-      <AdminDataTable
-        columns={columns}
-        rows={rows}
-        rowKey={(r) => `${r.date}-${r.type}-${r.balance}`}
-        sortKey="date"
-        sortDirection="desc"
-      />
-      <div className="mt-6 flex items-center justify-center gap-3 text-sm text-[var(--color-gray-700)]">
-        <button className="px-2 py-1 hover:text-primary" aria-label="Prev">‹</button>
-        {[1,2,3,4,5].map(n=>(
-          <button key={n} className={`h-8 w-8 rounded-full text-center leading-8 ${n===1?'text-primary font-semibold':'hover:text-primary'}`}>{n}</button>
+
+      {/* 테이블 */}
+      {loading ? (
+        <p className="text-gray-500 text-center py-10">불러오는 중...</p>
+      ) : (
+        <ArtistDataTable
+          columns={columns}
+          rows={rows}
+          rowKey={(r) => `${r.date}-${r.type}-${r.balance}`}
+          sortKey="date"
+          sortDirection="desc"
+        />
+      )}
+
+      {/* 페이지네이션 */}
+      <div className="mt-6 flex items-center justify-center gap-3 text-sm text-gray-700">
+        <button
+          className="px-2 py-1 hover:text-primary disabled:text-gray-400"
+          disabled={page === 0}
+          onClick={handlePrev}
+        >
+          ‹
+        </button>
+        {Array.from({ length: totalPages }, (_, i) => (
+          <button
+            key={i}
+            onClick={() => setPage(i)}
+            className={`h-8 w-8 rounded-full text-center leading-8 ${
+              i === page ? 'text-primary font-semibold' : 'hover:text-primary'
+            }`}
+          >
+            {i + 1}
+          </button>
         ))}
-        <button className="px-2 py-1 hover:text-primary" aria-label="Next">›</button>
+        <button
+          className="px-2 py-1 hover:text-primary disabled:text-gray-400"
+          disabled={page === totalPages - 1}
+          onClick={handleNext}
+        >
+          ›
+        </button>
       </div>
-    </>
+    </div>
   );
 }

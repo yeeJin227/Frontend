@@ -7,11 +7,12 @@ import FundingDataTable, {
   FundingTableColumn,
   SortDirection,
 } from '@/components/artist/FundingDataTable';
-import FundingCreateModal from '@/components/artist/FundingCreateModal'; // ⬅️ 모달 import
+import FundingCreateModal from '@/components/artist/FundingCreateModal';
 import { fetchCategories } from '@/utils/api/category';
 import { Category } from '@/types/funding.category';
+import { fetchArtistFundingList, ArtistFunding } from '@/services/artistFunding';
 
-// 테이블 행 데이터 타입 (UI)
+
 type FundingRow = {
   id: string;
   title: string;
@@ -20,121 +21,6 @@ type FundingRow = {
   totalFunding: string;
   endAt: string;
 };
-
-const MOCK_ROWS: FundingRow[] = [
-  {
-    id: '0000001',
-    title: '펀딩 제목입니다 펀딩 제목입니다.',
-    percent: '100%',
-    joinNumber: '800명',
-    totalFunding: '₩ 900,000',
-    endAt: '2025. 09. 18',
-  },
-  {
-    id: '0000002',
-    title: '펀딩 제목입니다 펀딩 제목입니다.',
-    percent: '1500%',
-    joinNumber: '800명',
-    totalFunding: '₩ 900,000',
-    endAt: '2025. 09. 18',
-  },
-  {
-    id: '0000003',
-    title: '펀딩 제목입니다 펀딩 제목입니다.',
-    percent: '2040%',
-    joinNumber: '800명',
-    totalFunding: '₩ 900,000',
-    endAt: '2025. 09. 18',
-  },
-  {
-    id: '0000004',
-    title: '펀딩 제목입니다 펀딩 제목입니다.',
-    percent: '300%',
-    joinNumber: '800명',
-    totalFunding: '₩ 900,000',
-    endAt: '2025. 09. 18',
-  },
-  {
-    id: '0000005',
-    title: '펀딩 제목입니다 펀딩 제목입니다.',
-    percent: '5000%',
-    joinNumber: '800명',
-    totalFunding: '₩ 900,000',
-    endAt: '2025. 09. 18',
-  },
-  {
-    id: '0000006',
-    title: '펀딩 제목입니다 펀딩 제목입니다.',
-    percent: '104%',
-    joinNumber: '800명',
-    totalFunding: '₩ 900,000',
-    endAt: '2025. 09. 18',
-  },
-  {
-    id: '0000007',
-    title: '펀딩 제목입니다 펀딩 제목입니다.',
-    percent: '80%',
-    joinNumber: '800명',
-    totalFunding: '₩ 900,000',
-    endAt: '2025. 09. 18',
-  },
-  {
-    id: '0000008',
-    title: '펀딩 제목입니다 펀딩 제목입니다.',
-    percent: '70%',
-    joinNumber: '800명',
-    totalFunding: '₩ 900,000',
-    endAt: '2025. 09. 18',
-  },
-  {
-    id: '0000009',
-    title: '펀딩 제목입니다 펀딩 제목입니다.',
-    percent: '50%',
-    joinNumber: '800명',
-    totalFunding: '₩ 900,000',
-    endAt: '2025. 09. 18',
-  },
-  {
-    id: '0000010',
-    title: '펀딩 제목입니다 펀딩 제목입니다.',
-    percent: '1%',
-    joinNumber: '800명',
-    totalFunding: '₩ 900,000',
-    endAt: '2025. 09. 18',
-  },
-  {
-    id: '0000011',
-    title: '펀딩 제목입니다 펀딩 제목입니다.',
-    percent: '10%',
-    joinNumber: '800명',
-    totalFunding: '₩ 900,000',
-    endAt: '2025. 09. 18',
-  },
-  {
-    id: '0000012',
-    title: '펀딩 제목입니다 펀딩 제목입니다.',
-    percent: '20%',
-    joinNumber: '800명',
-    totalFunding: '₩ 900,000',
-    endAt: '2025. 09. 18',
-  },
-  {
-    id: '0000013',
-    title: '펀딩 제목입니다 펀딩 제목입니다.',
-    percent: '45%',
-    joinNumber: '800명',
-    totalFunding: '₩ 900,000',
-    endAt: '2025. 09. 18',
-  },
-  {
-    id: '0000014',
-    title: '펀딩 제목입니다 펀딩 제목입니다.',
-    percent: '79%',
-    joinNumber: '800명',
-    totalFunding: '₩ 900,000',
-    endAt: '2025. 09. 18',
-  },
-];
 
 const columns: FundingTableColumn<FundingRow>[] = [
   { key: 'title', header: '펀딩제목', align: 'center', sortable: true },
@@ -154,17 +40,11 @@ function getPageRange(current: number, total: number, count = 5) {
 }
 
 export default function FundingManagePage() {
-  useEffect(() => {
-    const loadCategory = async () => {
-      const categoryData = await fetchCategories();
-      console.log(categoryData.data);
-      setCategoryList(categoryData.data);
-    };
-    loadCategory();
-  }, []);
-  const [sortKey, setSortKey] = useState<keyof FundingRow | undefined>(
-    undefined,
-  );
+  const [fundings, setFundings] = useState<FundingRow[]>([]);
+  const [totalPages, setTotalPages] = useState(1);
+  const [loading, setLoading] = useState(false);
+
+  const [sortKey, setSortKey] = useState<keyof FundingRow | undefined>(undefined);
   const [sortDirection, setSortDirection] = useState<SortDirection>('asc');
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
@@ -173,26 +53,57 @@ export default function FundingManagePage() {
   const [page, setPage] = useState(1);
   const size = 10;
 
-  const [openModal, setOpenModal] = useState(false); // ⬅️ 모달 상태
+  const [openModal, setOpenModal] = useState(false);
 
-  const filtered = useMemo(() => {
-    const q = searchTerm.trim();
-    if (!q) return MOCK_ROWS;
-    return MOCK_ROWS.filter((r) => r.title.includes(q));
-  }, [searchTerm]);
+  // 카테고리 api
+  useEffect(() => {
+    const loadCategory = async () => {
+      const categoryData = await fetchCategories();
+      setCategoryList(categoryData.data);
+    };
+    loadCategory();
+  }, []);
 
-  const totalPages = Math.max(1, Math.ceil(filtered.length / size));
-  const pageRows = useMemo(
-    () => filtered.slice((page - 1) * size, page * size),
-    [filtered, page, size],
-  );
+  // 펀딩 목록 조회 api
+  useEffect(() => {
+    const loadFundingList = async () => {
+      try {
+        setLoading(true);
+        const data = await fetchArtistFundingList({
+          page: page - 1, // API는 0부터 시작
+          size,
+          keyword: searchTerm || undefined,
+          sort: sortKey || 'title',
+          order: sortDirection.toUpperCase() as 'ASC' | 'DESC',
+        });
 
-  const handleSelectionChange = (keys: Key[]) =>
-    setSelectedIds(keys.map(String));
+        const mapped: FundingRow[] = data.content.map((f: ArtistFunding) => ({
+          id: String(f.fundingId),
+          title: f.title,
+          percent: `${Math.round(f.achievementRate)}%`,
+          joinNumber: `${f.participantCount}명`,
+          totalFunding: `₩ ${f.currentAmount.toLocaleString()}`,
+          endAt: f.endDate?.split('T')[0]?.replace(/-/g, '. ') ?? '-',
+        }));
+
+        setFundings(mapped);
+        setTotalPages(Math.max(1, data.totalPages || 1));
+      } catch (err) {
+        console.error(err);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    loadFundingList();
+  }, [page, searchTerm, sortKey, sortDirection]);
+
+  const handleSelectionChange = (keys: Key[]) => setSelectedIds(keys.map(String));
   const updateSort = (key: string, direction: SortDirection) => {
     setSortKey(key as keyof FundingRow);
     setSortDirection(direction);
   };
+
 
   return (
     <>
@@ -208,7 +119,7 @@ export default function FundingManagePage() {
 
       <FundingDataTable
         columns={columns}
-        rows={pageRows}
+        rows={fundings}
         rowKey={(row) => row.id}
         sortKey={sortKey as string | undefined}
         sortDirection={sortDirection}
@@ -227,7 +138,6 @@ export default function FundingManagePage() {
             onClick={() => setPage(1)}
             disabled={page <= 1}
             className="px-2 py-1 hover:text-primary disabled:opacity-40"
-            aria-label="First"
           >
             «
           </button>
@@ -235,7 +145,6 @@ export default function FundingManagePage() {
             onClick={() => setPage(Math.max(1, page - 1))}
             disabled={page <= 1}
             className="px-2 py-1 hover:text-primary disabled:opacity-40"
-            aria-label="Previous"
           >
             ‹
           </button>
@@ -244,8 +153,9 @@ export default function FundingManagePage() {
             <button
               key={n}
               onClick={() => setPage(n)}
-              className={`h-8 w-8 rounded-full text-center leading-8 ${n === page ? 'text-primary font-semibold' : 'hover:text-primary'}`}
-              aria-current={n === page ? 'page' : undefined}
+              className={`h-8 w-8 rounded-full text-center leading-8 ${
+                n === page ? 'text-primary font-semibold' : 'hover:text-primary'
+              }`}
             >
               {n}
             </button>
@@ -255,7 +165,6 @@ export default function FundingManagePage() {
             onClick={() => setPage(Math.min(totalPages, page + 1))}
             disabled={page >= totalPages}
             className="px-2 py-1 hover:text-primary disabled:opacity-40"
-            aria-label="Next"
           >
             ›
           </button>
@@ -263,7 +172,6 @@ export default function FundingManagePage() {
             onClick={() => setPage(totalPages)}
             disabled={page >= totalPages}
             className="px-2 py-1 hover:text-primary disabled:opacity-40"
-            aria-label="Last"
           >
             »
           </button>
@@ -280,14 +188,11 @@ export default function FundingManagePage() {
             placeholder="검색어를 입력하세요"
             className="h-full flex-1 bg-transparent pr-8 outline-none placeholder:text-[var(--color-gray-400)]"
           />
-          <SearchIcon
-            className="absolute right-4 h-4 w-4 text-primary"
-            aria-hidden
-          />
+          <SearchIcon className="absolute right-4 h-4 w-4 text-primary" aria-hidden />
         </form>
       </div>
 
-      {/* ⬇️ 모달 연결 */}
+      {/* 펀딩 생성 모달 */}
       <FundingCreateModal
         open={openModal}
         mode="create"
