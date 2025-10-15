@@ -18,7 +18,24 @@ interface ProductInfoProps {
   progress: number;
 }
 
+export interface addCartRequest {
+  fundingId: number;
+  quantity: number;
+  cartType: 'FUNDING';
+  fundingPrice: number;
+  fundingStock: number;
+}
+
+// {
+//   "fundingId": 10,
+//   "quantity": 1,
+//   "cartType": "FUNDING",
+//   "fundingPrice": 5000,
+//   "fundingStock": 50
+// }
+
 export default function ProductInfo({
+  id,
   title,
   category,
   price,
@@ -29,9 +46,38 @@ export default function ProductInfo({
   remainingDays,
   participants,
 }: ProductInfoProps) {
+  const API_BASE_URL = (
+    process.env.NEXT_PUBLIC_API_BASE_URL ?? 'http://localhost:8080'
+  ).replace(/\/+$/, '');
   const [isWishlisted, setIsWishlisted] = useState(false);
   const isFundingEnded = remainingDays < 0;
   const isOutOfStock = stock <= 0;
+
+  const handleAddCart = async () => {
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/cart`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          fundingId: id,
+          quantity: 1,
+          cartType: 'FUNDING',
+          fundingPrice: price,
+          fundingStock: stock,
+        }),
+        credentials: 'include',
+      });
+
+      if (!response.ok) {
+        throw new Error(`Error : ${response.status} ${response.statusText}`);
+      }
+      if (response.status === 200) console.log(response);
+    } catch (error) {
+      console.error(error);
+    }
+  };
 
   return (
     <div className="space-y-6 ml-[92px]">
@@ -105,6 +151,7 @@ export default function ProductInfo({
 
       <div className="space-x-3 flex gap-7">
         <button
+          onClick={handleAddCart}
           disabled={isFundingEnded || isOutOfStock}
           className={`max-w-[162px] w-full border-1 py-3 px-6 rounded-[6px] text-[25px] font-bold transition-colors ${
             isFundingEnded || isOutOfStock
