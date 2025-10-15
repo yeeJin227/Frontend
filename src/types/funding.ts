@@ -93,6 +93,13 @@ export interface FundingOptionResponse {
   sortOrder: number;
 }
 
+export interface UploadedImage {
+  url: string;
+  type: 'MAIN' | 'DETAIL';
+  s3Key: string;
+  originalFileName: string;
+}
+
 // 펀딩 생성 요청
 export interface CreateFundingRequest {
   title: string;
@@ -101,9 +108,10 @@ export interface CreateFundingRequest {
   imageUrl: string;
   targetAmount: number;
   price: number;
-  stock: number;
+  stock?: number;
   startDate: string; // ISO 8601 형식
   endDate: string; // ISO 8601 형식
+  images: UploadedImage[];
 }
 
 // 펀딩 생성 응답 데이터

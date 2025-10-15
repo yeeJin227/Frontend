@@ -1,6 +1,11 @@
 'use client';
 
-import { ApiResponse, CreateFundingResponse } from '@/types/funding';
+import {
+  ApiResponse,
+  CreateFundingRequest,
+  CreateFundingResponse,
+  UploadedImage,
+} from '@/types/funding';
 import { Category } from '@/types/funding.category';
 import { useState, useEffect } from 'react';
 
@@ -10,13 +15,6 @@ type Props = {
   onClose: () => void;
   categoryList: Category[];
 };
-
-interface FundingImage {
-  url: string;
-  type: 'MAIN' | 'DETAIL';
-  s3Key: string;
-  originalFileName: string;
-}
 
 const API_BASE_URL =
   process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:8080';
@@ -72,7 +70,7 @@ function FundingCreateModalInner({
   };
 
   // 1. 이미지 업로드
-  const uploadImage = async (file: File): Promise<FundingImage[]> => {
+  const uploadImage = async (file: File): Promise<UploadedImage[]> => {
     try {
       const formData = new FormData();
       formData.append('files', file); // 파일 자체를 추가
@@ -97,7 +95,7 @@ function FundingCreateModalInner({
         );
       }
 
-      const result: ApiResponse<FundingImage[]> = await response.json();
+      const result: ApiResponse<UploadedImage[]> = await response.json();
 
       if (result.resultCode !== '200') {
         throw new Error(result.msg || '이미지 업로드 실패');
@@ -116,21 +114,23 @@ function FundingCreateModalInner({
 
   // 2. 펀딩 생성
   const createFunding = async (
-    imageData: FundingImage[],
+    imageData: UploadedImage[],
   ): Promise<CreateFundingResponse> => {
     try {
-      const payload = {
+      const payload: CreateFundingRequest = {
         title,
         description,
         categoryId: Number(categoryId),
         imageUrl: imageData[0]?.url || '',
         targetAmount,
         price,
-        stock: stock === '' ? null : Number(stock),
         startDate: formatDateTime(startDate),
         endDate: formatDateTime(endDate),
         images: imageData,
       };
+      if (stock !== '') {
+        payload.stock = Number(stock);
+      }
 
       console.log('펀딩 생성 요청:', payload);
 
@@ -211,14 +211,6 @@ function FundingCreateModalInner({
 
       // 1. 이미지 업로드
       const imageData = await uploadImage(imageFile);
-      // const imageData: FundingImage[] = [
-      //   {
-      //     url: 'https://morimori-files-bucket.s3.ap-northeast-2.amazonaws.com/funding-images/4bf1333e-465e-4ed2-8e87-518aa7f15e37.jpg',
-      //     type: 'MAIN',
-      //     s3Key: 'funding-images/4bf1333e-465e-4ed2-8e87-518aa7f15e37.jpg',
-      //     originalFileName: 'test2.JPG',
-      //   },
-      // ];
 
       // 2. 펀딩 생성
       await createFunding(imageData);
