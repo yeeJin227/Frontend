@@ -96,6 +96,8 @@ export default function ProductInfo({
     checkWishlistStatus();
   }, [id, role, API_BASE_URL]); // role이 변경되면 다시 확인
 
+  const handleBuy = async () => {};
+
   const handleAddCart = async () => {
     if (!role) {
       toast.error('로그인이 필요한 서비스입니다.');
@@ -267,6 +269,7 @@ export default function ProductInfo({
           장바구니
         </button>
         <button
+          onClick={handleBuy}
           disabled={isFundingEnded || isOutOfStock}
           className={`max-w-[162px] w-full py-3 px-6 rounded-[6px] text-[25px] font-bold transition-colors ${
             isFundingEnded || isOutOfStock

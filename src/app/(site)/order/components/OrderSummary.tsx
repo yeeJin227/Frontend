@@ -29,7 +29,7 @@ const OrderSummary = ({ allItems }: OrderSummaryProps) => {
       // 주문 전 장바구니 검증
       const validationResult = await validateCartMutation.mutateAsync(false);
 
-      if (!validationResult.data.isValid) {
+      if (validationResult.resultCode !== '200') {
         const invalidItems = validationResult.data.invalidItems || [];
         const reasons = invalidItems
           .map((item) => `- ${item.productName}: ${item.reason}`)
@@ -43,6 +43,7 @@ const OrderSummary = ({ allItems }: OrderSummaryProps) => {
       router.push('/order/payment');
     } catch (error) {
       alert('주문 처리 중 오류가 발생했습니다.');
+      console.error(error);
     }
   };
 
