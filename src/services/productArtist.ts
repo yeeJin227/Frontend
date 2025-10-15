@@ -18,14 +18,31 @@ export async function fetchProductArtistInfo(productUuid: string): Promise<Produ
 }
 
 // 작가 공개 프로필 상세정보
+type FetchError = Error & { status?: number };
+
 export async function fetchArtistPublicProfile(artistId: number): Promise<ArtistPublicProfile> {
   const res = await fetch(`${API_BASE}/api/artist/profile/${artistId}`, {
     method: 'GET',
     headers: { accept: 'application/json' },
     credentials: 'include',
+    cache: 'no-store',
   });
 
-  const json = await res.json();
-  if (!res.ok) throw new Error(json.msg || '작가 프로필 정보를 불러오지 못했습니다.');
-  return json.data;
+  const json = (await res
+    .json()
+    .catch(() => ({}))) as { msg?: string; data?: ArtistPublicProfile };
+  if (!res.ok) {
+    const message = (json && json.msg) || '작가 프로필 정보를 불러오지 못했습니다.';
+    const error: FetchError = new Error(message);
+    error.status = res.status;
+    throw error;
+  }
+
+  if (!json || !json.data) {
+    const error: FetchError = new Error('작가 프로필 정보가 없습니다.');
+    error.status = res.status;
+    throw error;
+  }
+
+  return json.data as ArtistPublicProfile;
 }
