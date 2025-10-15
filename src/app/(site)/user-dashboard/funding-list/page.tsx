@@ -30,11 +30,11 @@ interface Funding {
 
 // API의 sort 파라미터에 맞는 정렬 가능한 컬럼 타입
 type SortColumn =
-  | 'fundingName'
+  | 'title'
   | 'artistName'
-  | 'supportAmount'
-  | 'fundingStatus'
-  | 'supportedAt'
+  | 'pledgedAmount'
+  | 'status'
+  | 'paidAt'
   | null;
 type SortDirection = 'asc' | 'desc';
 
@@ -178,12 +178,12 @@ export default function FundingListPage() {
               </th>
               <th className="px-4 py-4 text-left">
                 <button
-                  onClick={() => handleSort('fundingName')}
+                  onClick={() => handleSort('title')}
                   className="flex items-center gap-1 text-sm font-medium text-gray-700 hover:text-gray-900"
                 >
                   펀딩명
                   <svg
-                    className={`w-4 h-4 transition-transform ${sortColumn === 'fundingName' && sortDirection === 'asc' ? 'rotate-180' : ''}`}
+                    className={`w-4 h-4 transition-transform ${sortColumn === 'title' && sortDirection === 'asc' ? 'rotate-180' : ''}`}
                     fill="none"
                     stroke="currentColor"
                     viewBox="0 0 24 24"
@@ -199,12 +199,12 @@ export default function FundingListPage() {
               </th>
               <th className="px-4 py-4 text-left">
                 <button
-                  onClick={() => handleSort('fundingName')}
+                  onClick={() => handleSort('artistName')}
                   className="flex items-center gap-1 text-sm font-medium text-gray-700 hover:text-gray-900"
                 >
                   작가명
                   <svg
-                    className={`w-4 h-4 transition-transform ${sortColumn === 'fundingName' && sortDirection === 'asc' ? 'rotate-180' : ''}`}
+                    className={`w-4 h-4 transition-transform ${sortColumn === 'artistName' && sortDirection === 'asc' ? 'rotate-180' : ''}`}
                     fill="none"
                     stroke="currentColor"
                     viewBox="0 0 24 24"
@@ -223,12 +223,12 @@ export default function FundingListPage() {
               </th>
               <th className="px-4 py-4 text-left">
                 <button
-                  onClick={() => handleSort('supportAmount')}
+                  onClick={() => handleSort('pledgedAmount')}
                   className="flex items-center gap-1 text-sm font-medium text-gray-700 hover:text-gray-900"
                 >
                   후원금액
                   <svg
-                    className={`w-4 h-4 transition-transform ${sortColumn === 'supportAmount' && sortDirection === 'asc' ? 'rotate-180' : ''}`}
+                    className={`w-4 h-4 transition-transform ${sortColumn === 'pledgedAmount' && sortDirection === 'asc' ? 'rotate-180' : ''}`}
                     fill="none"
                     stroke="currentColor"
                     viewBox="0 0 24 24"
@@ -244,12 +244,12 @@ export default function FundingListPage() {
               </th>
               <th className="px-4 py-4 text-left">
                 <button
-                  onClick={() => handleSort('fundingStatus')}
+                  onClick={() => handleSort('status')}
                   className="flex items-center gap-1 text-sm font-medium text-gray-700 hover:text-gray-900"
                 >
                   펀딩상태
                   <svg
-                    className={`w-4 h-4 transition-transform ${sortColumn === 'fundingStatus' && sortDirection === 'asc' ? 'rotate-180' : ''}`}
+                    className={`w-4 h-4 transition-transform ${sortColumn === 'status' && sortDirection === 'asc' ? 'rotate-180' : ''}`}
                     fill="none"
                     stroke="currentColor"
                     viewBox="0 0 24 24"
@@ -265,12 +265,12 @@ export default function FundingListPage() {
               </th>
               <th className="px-4 py-4 text-left">
                 <button
-                  onClick={() => handleSort('supportedAt')}
+                  onClick={() => handleSort('paidAt')}
                   className="flex items-center gap-1 text-sm font-medium text-gray-700 hover:text-gray-900"
                 >
                   후원일자
                   <svg
-                    className={`w-4 h-4 transition-transform ${sortColumn === 'supportedAt' && sortDirection === 'asc' ? 'rotate-180' : ''}`}
+                    className={`w-4 h-4 transition-transform ${sortColumn === 'paidAt' && sortDirection === 'asc' ? 'rotate-180' : ''}`}
                     fill="none"
                     stroke="currentColor"
                     viewBox="0 0 24 24"
