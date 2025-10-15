@@ -6,13 +6,16 @@ export type AdminFundingApprovalResponse = {
   data?: unknown;
 };
 
+export type FundingApprovalSortField = 'artistId' | 'artistName' | 'title' | 'registeredAt';
+export type FundingApprovalOrder = 'ASC' | 'DESC';
+
 export type FundingApprovalQuery = {
   page?: number;
   size?: number;
   keyword?: string;
   startDate?: string;
-  sort?: 'registeredAt' | 'requestedAt' | string;
-  order?: 'ASC' | 'DESC' | string;
+  sort?: FundingApprovalSortField;
+  order?: FundingApprovalOrder;
 };
 
 export type FundingApprovalItem = {

@@ -144,7 +144,7 @@ export default function ApproveFundingPage() {
         setLoadingList(true);
         setListError(null);
         const list = await fetchFundingApprovalList(
-          { page: 0, size: 20, sort: 'requestedAt', order: 'DESC' },
+          { page: 0, size: 20, sort: 'registeredAt', order: 'DESC' },
           accessToken ? { accessToken } : undefined,
         );
 
