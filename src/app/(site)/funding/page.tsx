@@ -59,7 +59,6 @@ export default async function FundingPage({ searchParams }: FundingPageProps) {
       getPopularFundings(),
       fetchCategories(),
     ]);
-  console.log(fundingResponse);
 
   const categories = categoryResponse.data.map((category) => ({
     id: category.id,

@@ -1,4 +1,3 @@
-// app/funding/[id]/_components/ProductInfo.tsx
 'use client';
 
 import { useState } from 'react';
@@ -48,7 +47,7 @@ export default function ProductInfo({
         <div>
           <p>가격</p>
           <div className="text-3xl font-bold text-gray-900">
-            {price.toLocaleString()}
+            {(price ?? 0).toLocaleString()}
             <span className="text-[18px] font-normal">원</span>
           </div>
         </div>
@@ -58,11 +57,11 @@ export default function ProductInfo({
           <p>재고 현황</p>
           <div className="flex gap-4 items-center">
             <div className="font-bold text-gray-900">
-              {stock.toLocaleString()}
+              {(stock ?? 0).toLocaleString()}
               <span className="text-[18px] font-normal">개 남음</span>
             </div>
             <div className="text-gray-500 font-normal text-[18px]">
-              {soldCount.toLocaleString()}개 판매됨
+              {(soldCount ?? 0).toLocaleString()}개 판매됨
             </div>
           </div>
         </div>
@@ -71,11 +70,11 @@ export default function ProductInfo({
           <p>모인 금액</p>
           <div className="flex gap-20">
             <div className="text-3xl font-bold text-gray-900">
-              {currentAmount.toLocaleString()}
+              {(currentAmount ?? 0).toLocaleString()}
               <span className="text-[18px] font-normal">원</span>
             </div>
             <div className="text-gray-500 font-normal self-end">
-              목표 금액 {targetAmount.toLocaleString()}원
+              목표 금액 {(targetAmount ?? 0).toLocaleString()}원
             </div>
           </div>
         </div>
