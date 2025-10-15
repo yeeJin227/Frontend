@@ -69,7 +69,7 @@ export const toggleCartItemSelection = async (
   const response = await fetch(
     `${API_BASE_URL}/api/cart/${cartId}/toggle-selection`,
     {
-      method: 'PATCH',
+      method: 'PUT',
       headers: {
         'Content-Type': 'application/json',
       },
@@ -78,7 +78,7 @@ export const toggleCartItemSelection = async (
   );
 
   if (!response.ok) {
-    throw new Error('선택 상태 변경에 실패했습니다.');
+    throw new Error(`${response.status} ${response.statusText}`);
   }
 
   return response.json();
@@ -91,16 +91,16 @@ export const updateCartItemQuantity = async (
   cartId: number,
   quantity: number,
 ): Promise<ApiResponse<void>> => {
-  const body: UpdateQuantityRequest = { quantity };
-
-  const response = await fetch(`${API_BASE_URL}/api/cart/${cartId}/quantity`, {
-    method: 'PATCH',
-    headers: {
-      'Content-Type': 'application/json',
+  const response = await fetch(
+    `${API_BASE_URL}/api/cart/${cartId}/quantity?quantity=${quantity}`,
+    {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      credentials: 'include',
     },
-    credentials: 'include',
-    body: JSON.stringify(body),
-  });
+  );
 
   if (!response.ok) {
     throw new Error('수량 변경에 실패했습니다.');
