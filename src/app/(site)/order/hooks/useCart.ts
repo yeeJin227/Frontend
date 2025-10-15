@@ -2,11 +2,14 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   getCart,
   toggleCartItemSelection,
+  toggleAllCartSelection,
   updateCartItemQuantity,
   deleteCartItem,
+  validateCart,
+  getCartTotalAmount,
 } from '../api/cartApi';
 import { mapCartItemsResponseToCartItems } from '../types/mapper';
-import { CartItem, CartApiResponse } from '../types/cart.types';
+import { CartApiResponse } from '../types/cart.types';
 
 const CART_QUERY_KEY = ['cart'];
 
@@ -27,9 +30,6 @@ export const useCart = () => {
         data.data.fundingCartItems,
       );
 
-      console.log(
-        `일반 장바구니 : ${normalItems}\n펀딩 장바구니 :${fundingItems}`,
-      );
       return {
         normalItems,
         fundingItems,
@@ -90,6 +90,21 @@ export const useToggleCartItem = () => {
     },
     onSettled: () => {
       // 완료 후 최신 데이터로 refetch
+      queryClient.invalidateQueries({ queryKey: CART_QUERY_KEY });
+    },
+  });
+};
+
+/**
+ * 장바구니 전체 선택 토글 훅
+ */
+export const useToggleAllCartSelection = () => {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (isSelected: boolean) => toggleAllCartSelection(isSelected),
+    onSuccess: () => {
+      // 전체 선택/해제는 낙관적 업데이트 없이 서버 응답 후 refetch
       queryClient.invalidateQueries({ queryKey: CART_QUERY_KEY });
     },
   });
@@ -181,5 +196,25 @@ export const useDeleteCartItem = () => {
     onSettled: () => {
       queryClient.invalidateQueries({ queryKey: CART_QUERY_KEY });
     },
+  });
+};
+
+/**
+ * 장바구니 검증 훅
+ */
+export const useValidateCart = () => {
+  return useMutation({
+    mutationFn: validateCart,
+  });
+};
+
+/**
+ * 장바구니 총액 조회 훅
+ */
+export const useCartTotalAmount = (isFullOrder: boolean) => {
+  return useQuery({
+    queryKey: ['cartTotalAmount', isFullOrder],
+    queryFn: () => getCartTotalAmount(isFullOrder),
+    staleTime: 0,
   });
 };

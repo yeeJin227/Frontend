@@ -2,6 +2,8 @@ import {
   CartApiResponse,
   UpdateQuantityRequest,
   ApiResponse,
+  CartValidationApiResponse,
+  CartTotalAmountApiResponse,
 } from '../types/cart.types';
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || '';
@@ -78,7 +80,79 @@ export const toggleCartItemSelection = async (
   );
 
   if (!response.ok) {
-    throw new Error(`${response.status} ${response.statusText}`);
+    throw new Error('선택 상태 변경에 실패했습니다.');
+  }
+
+  return response.json();
+};
+
+/**
+ * 장바구니 전체 선택 토글
+ */
+export const toggleAllCartSelection = async (
+  isSelected: boolean,
+): Promise<ApiResponse<void>> => {
+  const response = await fetch(
+    `${API_BASE_URL}/api/cart/toggle-all-selection?isSelected=${isSelected}`,
+    {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      credentials: 'include',
+    },
+  );
+
+  if (!response.ok) {
+    throw new Error('전체 선택 토글에 실패했습니다.');
+  }
+
+  return response.json();
+};
+
+/**
+ * 장바구니 주문 가능 여부 검증
+ */
+export const validateCart = async (
+  isFullOrder: boolean,
+): Promise<CartValidationApiResponse> => {
+  const response = await fetch(
+    `${API_BASE_URL}/api/cart/validate?isFullOrder=${isFullOrder}`,
+    {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      credentials: 'include',
+    },
+  );
+
+  if (!response.ok) {
+    throw new Error('장바구니 검증에 실패했습니다.');
+  }
+
+  return response.json();
+};
+
+/**
+ * 장바구니 총 금액 계산 (서버)
+ */
+export const getCartTotalAmount = async (
+  isFullOrder: boolean,
+): Promise<CartTotalAmountApiResponse> => {
+  const response = await fetch(
+    `${API_BASE_URL}/api/cart/total-amount?isFullOrder=${isFullOrder}`,
+    {
+      method: 'GET',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      credentials: 'include',
+    },
+  );
+
+  if (!response.ok) {
+    throw new Error('장바구니 금액 조회에 실패했습니다.');
   }
 
   return response.json();
@@ -91,16 +165,16 @@ export const updateCartItemQuantity = async (
   cartId: number,
   quantity: number,
 ): Promise<ApiResponse<void>> => {
-  const response = await fetch(
-    `${API_BASE_URL}/api/cart/${cartId}/quantity?quantity=${quantity}`,
-    {
-      method: 'PUT',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      credentials: 'include',
+  const body: UpdateQuantityRequest = { quantity };
+
+  const response = await fetch(`${API_BASE_URL}/api/cart/${cartId}/quantity`, {
+    method: 'put',
+    headers: {
+      'Content-Type': 'application/json',
     },
-  );
+    credentials: 'include',
+    body: JSON.stringify(body),
+  });
 
   if (!response.ok) {
     throw new Error('수량 변경에 실패했습니다.');

@@ -47,6 +47,38 @@ export interface UpdateQuantityRequest {
   quantity: number;
 }
 
+// ========== 장바구니 검증 응답 타입 ==========
+
+export interface CartValidationResponse {
+  isValid: boolean;
+  invalidItems?: Array<{
+    cartId: number;
+    productName: string;
+    reason: string; // '재고 부족', '판매 중단' 등
+  }>;
+}
+
+export interface CartValidationApiResponse {
+  resultCode: string;
+  msg: string;
+  data: CartValidationResponse;
+}
+
+// ========== 장바구니 총액 응답 타입 ==========
+
+export interface CartTotalAmountResponse {
+  totalProductAmount: number;
+  totalShippingFee: number;
+  totalAmount: number;
+  itemCount: number;
+}
+
+export interface CartTotalAmountApiResponse {
+  resultCode: string;
+  msg: string;
+  data: CartTotalAmountResponse;
+}
+
 // ========== 공통 응답 타입 ==========
 
 export interface ApiResponse<T = unknown> {

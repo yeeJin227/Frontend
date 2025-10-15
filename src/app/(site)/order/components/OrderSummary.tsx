@@ -3,6 +3,7 @@
 import React from 'react';
 import { useRouter } from 'next/navigation';
 import { CartItem } from '../types/cart.types';
+import { useCartTotalAmount, useValidateCart } from '../hooks/useCart';
 
 interface OrderSummaryProps {
   allItems: CartItem[];
@@ -10,34 +11,45 @@ interface OrderSummaryProps {
 
 const OrderSummary = ({ allItems }: OrderSummaryProps) => {
   const router = useRouter();
+  const validateCartMutation = useValidateCart();
 
-  const calculateTotal = () => {
-    const checkedItems = allItems.filter((item) => item.isChecked);
-    const totalPrice = checkedItems.reduce(
-      (sum, item) => sum + item.price * item.quantity,
-      0,
-    );
-    const shippingFee = totalPrice > 0 ? 3000 : 0;
-    return {
-      totalPrice,
-      shippingFee,
-      finalPrice: totalPrice + shippingFee,
-      checkedCount: checkedItems.length,
-    };
-  };
+  const checkedCount = allItems.filter((item) => item.isChecked).length;
 
-  const { totalPrice, shippingFee, finalPrice, checkedCount } =
-    calculateTotal();
+  // 서버에서 총 금액 계산 (선택된 아이템만)
+  const { data: totalAmountData, isLoading: isLoadingAmount } =
+    useCartTotalAmount(false);
 
-  const handleOrder = () => {
+  const handleOrder = async () => {
     if (checkedCount === 0) {
       alert('주문할 상품을 선택해주세요.');
       return;
     }
 
-    // 결제 페이지로 이동
-    router.push('/order/payment');
+    try {
+      // 주문 전 장바구니 검증
+      const validationResult = await validateCartMutation.mutateAsync(false);
+
+      if (!validationResult.data.isValid) {
+        const invalidItems = validationResult.data.invalidItems || [];
+        const reasons = invalidItems
+          .map((item) => `- ${item.productName}: ${item.reason}`)
+          .join('\n');
+
+        alert(`주문할 수 없는 상품이 있습니다:\n${reasons}`);
+        return;
+      }
+
+      // 검증 통과 시 결제 페이지로 이동
+      router.push('/order/payment');
+    } catch (error) {
+      alert('주문 처리 중 오류가 발생했습니다.');
+    }
   };
+
+  // 로딩 중이거나 데이터가 없으면 기본값 표시
+  const totalPrice = totalAmountData?.data.totalProductAmount || 0;
+  const shippingFee = totalAmountData?.data.totalShippingFee || 0;
+  const finalPrice = totalAmountData?.data.totalAmount || 0;
 
   return (
     <>
@@ -64,9 +76,9 @@ const OrderSummary = ({ allItems }: OrderSummaryProps) => {
         <button
           onClick={handleOrder}
           disabled={checkedCount === 0}
-          className="px-6 py-3 bg-primary text-white rounded font-semibold hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed"
+          className="px-12 py-3 bg-primary text-white rounded font-semibold hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed"
         >
-          {checkedCount}개 상품 주문하기
+          주문하기 ({checkedCount})
         </button>
       </section>
     </>
