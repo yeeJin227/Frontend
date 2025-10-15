@@ -1,12 +1,12 @@
 'use client';
 
 import { useEffect, useState } from "react";
-import CategoryBtn from "../mainCategory/CategoryBtn";
 import NoticeEditor from "../editor/NoticeEditor";
 import X from "@/assets/icon/x.svg";
 import Paperclip from '@/assets/icon/paperclip2.svg';
 import React from "react";
 import { fetchProductQnaDetail, ProductQnaDetail } from "@/services/qna";
+import CategoryBtn from "./QnaCategoryBtn";
 
 // Q&A 목록 조회 타입 & API
 
@@ -116,6 +116,8 @@ export default function QnaInfo({ productUuid }: Props) {
   const [selectedQna, setSelectedQna] = useState<ProductQnaDetail | null>(null);
   const [detailLoading, setDetailLoading] = useState(false);
 
+  const [selectedCategory, setSelectedCategory] = useState<string>('전체');
+
   const handleRowClick = async (id: number) => {
   if (openId === String(id)) {
     // 이미 열려 있다면 닫기
@@ -154,13 +156,17 @@ export default function QnaInfo({ productUuid }: Props) {
   const loadQna = async () => {
     setLoading(true);
     try {
-      const data = await fetchProductQnaList(productUuid);
-      // 조회수 필드 기본값 추가
-      const listWithViews = data.map((item) => ({
-        ...item,
-        views: item.views ?? 1,
-      }));
-      setQnaList(listWithViews);
+      const categoryParam =
+        selectedCategory === '전체' ? undefined : selectedCategory;
+      const data = await fetchProductQnaList(productUuid, {
+        qnaCategory: categoryParam,
+      });
+      setQnaList(
+        data.map((item) => ({
+          ...item,
+          views: item.views ?? 1,
+        }))
+      );
     } catch (e) {
       console.error('[QnaInfo] 목록 조회 실패:', e);
     } finally {
@@ -168,7 +174,8 @@ export default function QnaInfo({ productUuid }: Props) {
     }
   };
   loadQna();
-}, [productUuid]);
+}, [productUuid, selectedCategory]);
+
 
   // 스크롤 방지 (모달 오픈 시)
   useEffect(() => {
@@ -182,7 +189,10 @@ export default function QnaInfo({ productUuid }: Props) {
     <section>
       <h3 className="font-semibold pt-12">상품 Q&A</h3>
       <div className="flex items-center justify-between pt-6">
-        <CategoryBtn items={qnaCategories} />
+        <CategoryBtn 
+          items={qnaCategories}
+          onSelect={(label) => setSelectedCategory(label)}
+        />
         <button 
           className="bg-primary rounded-lg px-4 py-2.5 text-white font-semibold border cursor-pointer transition hover:bg-white hover:border-primary hover:text-primary"
           onClick={() => setOpenModal(true)}
