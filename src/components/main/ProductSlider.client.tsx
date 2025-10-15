@@ -6,9 +6,12 @@ import ProductCard from '../ProductCard';
 import type { ProductListItem } from '@/types/product';
 
 const isNum = (v: unknown): v is number => typeof v === 'number' && Number.isFinite(v);
-const toCurrency = (n: number | null | undefined) => (isNum(n) ? `${n.toLocaleString('ko-KR')}원` : '');
-const toPercent  = (n: number | null | undefined) => (isNum(n) && n > 0 ? `${n}%` : undefined);
-const toRating   = (n: number | null | undefined) => (isNum(n) ? n.toFixed(1) : '0.0');
+const toCurrency = (n: number | null | undefined) =>
+  isNum(n) ? `${n.toLocaleString('ko-KR')}원` : '';
+const toPercent = (n: number | null | undefined) =>
+  isNum(n) && n > 0 ? `${n}%` : undefined;
+const toRating = (n: number | null | undefined) =>
+  isNum(n) ? n.toFixed(1) : '0.0';
 
 const safeImg = (url?: string | null): string | null =>
   url && url.trim().length > 0 ? url : null;
@@ -47,8 +50,18 @@ export default function ProductSlider({ items }: { items: ProductListItem[] }) {
         disabled={totalPages <= 1}
         aria-label="이전 보기"
       >
-        <svg className="h-6 w-6 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+        <svg
+          className="h-6 w-6 text-gray-600"
+          fill="none"
+          stroke="currentColor"
+          viewBox="0 0 24 24"
+        >
+          <path
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            strokeWidth={2}
+            d="M15 19l-7-7 7-7"
+          />
         </svg>
       </button>
 
@@ -65,13 +78,13 @@ export default function ProductSlider({ items }: { items: ProductListItem[] }) {
                   <div key={p.productUuid}>
                     <Link href={`/product/${p.productUuid}`}>
                       <ProductCard
-                        img={safeImg(p.url)} 
+                        img={safeImg(p.url)}
                         title={p.name}
                         brand={p.brandName}
                         discount={toPercent(p.discountRate)}
                         price={toCurrency(p.discountPrice)}
                         originalPrice={toCurrency(p.price)}
-                        rating={toRating(p.rating)}
+                        rating={toRating(p.rating)} 
                       />
                     </Link>
                   </div>
@@ -89,8 +102,18 @@ export default function ProductSlider({ items }: { items: ProductListItem[] }) {
         disabled={totalPages <= 1}
         aria-label="다음 보기"
       >
-        <svg className="h-6 w-6 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+        <svg
+          className="h-6 w-6 text-gray-600"
+          fill="none"
+          stroke="currentColor"
+          viewBox="0 0 24 24"
+        >
+          <path
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            strokeWidth={2}
+            d="M9 5l7 7-7 7"
+          />
         </svg>
       </button>
     </div>

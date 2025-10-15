@@ -1,20 +1,17 @@
 'use client';
 
-import { Suspense, useMemo, useState } from 'react';
+import { Suspense, useEffect, useState, useMemo } from 'react';
+import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import ResultHeader from '@/components/search/ResultHeader';
-import ProductCard from '@/components/ProductCard';
-
-import { fuzzyMatch } from '@/utils/search';
-import { allProducts } from '@/utils/product';
-
-const SORTS = ['인기순', '최신순', '낮은 가격순', '높은 가격순'] as const;
-type Sort = (typeof SORTS)[number];
-
-function toNumberPrice(v: string | number) {
-  if (typeof v === 'number') return v;
-  return Number(String(v).replace(/[^\d.-]/g, '')) || 0;
-}
+import { fetchSearchResults } from '@/services/search';
+import type {
+  ProductSearchItem,
+  ArtistSearchItem,
+  FundingSearchItem,
+} from '@/services/search';
+import type { ProductListItem } from '@/types/product';
+import ProductSlider from '@/components/main/ProductSlider.client';
 
 export default function Page() {
   return (
@@ -40,72 +37,175 @@ function SearchContent() {
   const params = useSearchParams();
   const q = (params.get('q') ?? '').trim();
 
-  const [sort, setSort] = useState<Sort>('인기순');
+  const [loading, setLoading] = useState(false);
+  const [products, setProducts] = useState<ProductSearchItem[]>([]);
+  const [artists, setArtists] = useState<ArtistSearchItem[]>([]);
+  const [fundings, setFundings] = useState<FundingSearchItem[]>([]);
 
-  const filtered = useMemo(() => {
-    // 검색어: (대소문자 무시)
-    const keyword = q.toLowerCase();
+  // 통합검색 API
+  useEffect(() => {
+    const load = async () => {
+      if (!q) return;
+      setLoading(true);
+      try {
+        const res = await fetchSearchResults(q);
+        setProducts(res.products || []);
+        setArtists(res.artists || []);
+        setFundings(res.fundings || []);
+      } catch (err) {
+        console.error('검색 실패:', err);
+      } finally {
+        setLoading(false);
+      }
+    };
+    load();
+  }, [q]);
 
-    const list = allProducts.filter(
-      (item) =>
-        !keyword ||
-        fuzzyMatch(keyword, item.title) ||
-        fuzzyMatch(keyword, item.brand),
+  // 상품 데이터 매핑 (ProductSlider)
+  const mappedProducts: ProductListItem[] = useMemo(
+    () =>
+      products.map((p) => ({
+        productUuid: p.productUuid,
+        url: p.url,
+        brandName: p.brandName,
+        name: p.name,
+        price: p.price ?? 0,
+        discountRate: p.discountRate ?? 0,
+        discountPrice: p.discountPrice ?? p.price ?? 0,
+        rating: p.rating ?? 0,
+      })),
+    [products]
+  );
+
+
+  if (!q) {
+    return (
+      <div className="mx-auto max-w-[1200px] px-4 py-8">
+        <main>
+          <div className="rounded-2xl bg-white p-8 text-center text-lg font-medium text-gray-600 shadow">
+            검색어를 입력해주세요.
+          </div>
+        </main>
+      </div>
     );
-
-    // 정렬: FilteredSection과 동일 로직
-    const copy = [...list];
-    switch (sort) {
-      case '최신순':
-        return copy.sort(
-          (a, b) =>
-            new Date(b.createdAt ?? 0).getTime() -
-            new Date(a.createdAt ?? 0).getTime(),
-        );
-      case '낮은 가격순':
-        return copy.sort(
-          (a, b) => toNumberPrice(a.price) - toNumberPrice(b.price),
-        );
-      case '높은 가격순':
-        return copy.sort(
-          (a, b) => toNumberPrice(b.price) - toNumberPrice(a.price),
-        );
-      case '인기순':
-      default:
-        return copy;
-    }
-  }, [q, sort]);
+  }
 
   return (
-    <div className="mx-auto max-w-[1200px] px-4 py-8">
+    <div className="mx-auto max-w-[1200px] px-4 py-8 space-y-12">
       <main>
         <ResultHeader
           query={q || '전체'}
-          total={filtered.length}
-          onSort={(v) => setSort(v)}
+          total={products.length + artists.length + fundings.length}
+          onSort={() => {}}
         />
 
-        {filtered.length === 0 ? (
-          <div className='flex flex-col justify-center items-center text-center p-50 mt-4 bg-tertiary-20'>
-            <div className="text-4xl mb-3">🧐</div>
-            <span className='text-lg font-semibold mb-2'>검색결과가 없습니다.</span>
-            <p className="text-sm text-slate-500 mb-6">검색어를 다시 입력해주세요.</p>
-          </div>
+        {loading ? (
+          <div className="text-center mt-10 text-gray-500">검색 중...</div>
         ) : (
-          <section className="mt-6 grid grid-cols-2 gap-x-6 gap-y-10 md:grid-cols-3 xl:grid-cols-4">
-            {filtered.map((item) => (
-              <ProductCard
-                key={item.id}
-                img={item.img}
-                title={item.title}
-                brand={item.brand}
-                discount={item.discount ? `${item.discount}` : undefined}
-                price={item.price.toLocaleString()}
-                originalPrice={item.originalPrice.toLocaleString()}
-                rating={item.rating}
-              />
-            ))}
-          </section>
+          <>
+            {/* 상품 */}
+            <section className='py-8'>
+              <h2 className="text-xl font-semibold mb-4">상품</h2>
+              {mappedProducts.length === 0 ? (
+                <div className="flex flex-col justify-center items-center text-center p-10 bg-tertiary-20 rounded-2xl">
+                  <div className="text-4xl mb-3">🧐</div>
+                  <span className="text-lg font-semibold mb-2">
+                    상품 검색결과가 없습니다.
+                  </span>
+                  <p className="text-sm text-slate-500 mb-2">
+                    다른 검색어를 입력해보세요.
+                  </p>
+                </div>
+              ) : (
+                <ProductSlider items={mappedProducts} />
+              )}
+            </section>
+
+            {/* 작가 */}
+            <section className='py-8'>
+              <h2 className="text-xl font-semibold mb-4">작가</h2>
+              {artists.length === 0 ? (
+                <div className="flex flex-col justify-center items-center text-center p-10 bg-tertiary-20 rounded-2xl">
+                  <div className="text-4xl mb-3">🧐</div>
+                  <span className="text-lg font-semibold mb-2">
+                    작가 검색결과가 없습니다.
+                  </span>
+                  <p className="text-sm text-slate-500 mb-2">
+                    다른 검색어를 입력해보세요.
+                  </p>
+                </div>
+              ) : (
+                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-6">
+                  {artists.map((artist) => (
+                    <Link
+                      key={artist.artistId}
+                      href={`/artist/${artist.artistId}`}
+                      className="flex flex-col items-center justify-center p-4 border rounded-lg shadow-sm bg-white hover:shadow-md transition"
+                    >
+                      <img
+                        src={
+                          artist.profileImageUrl ||
+                          '/images/default-profile.png'
+                        }
+                        alt={artist.artistName}
+                        className="w-24 h-24 rounded-full object-cover mb-3"
+                      />
+                      <p className="font-semibold">{artist.artistName}</p>
+                    </Link>
+                  ))}
+                </div>
+              )}
+            </section>
+
+            {/* 펀딩 */}
+            <section className='py-8'>
+              <h2 className="text-xl font-semibold mb-4">펀딩</h2>
+              {fundings.length === 0 ? (
+                <div className="flex flex-col justify-center items-center text-center p-10 bg-tertiary-20 rounded-2xl">
+                  <div className="text-4xl mb-3">🧐</div>
+                  <span className="text-lg font-semibold mb-2">
+                    펀딩 검색결과가 없습니다.
+                  </span>
+                  <p className="text-sm text-slate-500 mb-2">
+                    다른 검색어를 입력해보세요.
+                  </p>
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-8">
+                  {fundings.map((f) => (
+                    <Link
+                      key={f.id}
+                      href={`/funding/${f.id}`}
+                      className="border rounded-lg overflow-hidden shadow-sm hover:shadow-md transition bg-white"
+                    >
+                      <img
+                        src={f.imageUrl}
+                        alt={f.title}
+                        className="w-full h-[200px] object-cover"
+                      />
+                      <div className="p-4 space-y-1">
+                        <h3 className="font-bold text-base truncate">
+                          {f.title}
+                        </h3>
+                        <p className="text-sm text-gray-500">{f.authorName}</p>
+                        <p className="text-sm text-gray-400">
+                          {f.categoryName}
+                        </p>
+                        <div className="flex justify-between text-sm mt-2">
+                          <span className="text-primary font-semibold">
+                            {f.progress}% 달성
+                          </span>
+                          <span className="text-gray-500">
+                            {f.remainingDays}일 남음
+                          </span>
+                        </div>
+                      </div>
+                    </Link>
+                  ))}
+                </div>
+              )}
+            </section>
+          </>
         )}
       </main>
     </div>
