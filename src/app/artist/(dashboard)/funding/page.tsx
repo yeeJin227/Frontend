@@ -1,10 +1,15 @@
 'use client';
 
-import { useMemo, useState, type Key } from 'react';
+import { useEffect, useMemo, useState, type Key } from 'react';
 import Button from '@/components/Button';
 import SearchIcon from '@/assets/icon/search.svg';
-import FundingDataTable, { FundingTableColumn, SortDirection } from '@/components/artist/FundingDataTable';
+import FundingDataTable, {
+  FundingTableColumn,
+  SortDirection,
+} from '@/components/artist/FundingDataTable';
 import FundingCreateModal from '@/components/artist/FundingCreateModal'; // ⬅️ 모달 import
+import { fetchCategories } from '@/utils/api/category';
+import { Category } from '@/types/funding.category';
 
 // 테이블 행 데이터 타입 (UI)
 type FundingRow = {
@@ -17,28 +22,126 @@ type FundingRow = {
 };
 
 const MOCK_ROWS: FundingRow[] = [
-  { id: '0000001', title: '펀딩 제목입니다 펀딩 제목입니다.', percent: '100%',  joinNumber: '800명', totalFunding: '₩ 900,000', endAt: '2025. 09. 18' },
-  { id: '0000002', title: '펀딩 제목입니다 펀딩 제목입니다.', percent: '1500%', joinNumber: '800명', totalFunding: '₩ 900,000', endAt: '2025. 09. 18' },
-  { id: '0000003', title: '펀딩 제목입니다 펀딩 제목입니다.', percent: '2040%', joinNumber: '800명', totalFunding: '₩ 900,000', endAt: '2025. 09. 18' },
-  { id: '0000004', title: '펀딩 제목입니다 펀딩 제목입니다.', percent: '300%',  joinNumber: '800명', totalFunding: '₩ 900,000', endAt: '2025. 09. 18' },
-  { id: '0000005', title: '펀딩 제목입니다 펀딩 제목입니다.', percent: '5000%', joinNumber: '800명', totalFunding: '₩ 900,000', endAt: '2025. 09. 18' },
-  { id: '0000006', title: '펀딩 제목입니다 펀딩 제목입니다.', percent: '104%',  joinNumber: '800명', totalFunding: '₩ 900,000', endAt: '2025. 09. 18' },
-  { id: '0000007', title: '펀딩 제목입니다 펀딩 제목입니다.', percent: '80%',   joinNumber: '800명', totalFunding: '₩ 900,000', endAt: '2025. 09. 18' },
-  { id: '0000008', title: '펀딩 제목입니다 펀딩 제목입니다.', percent: '70%',   joinNumber: '800명', totalFunding: '₩ 900,000', endAt: '2025. 09. 18' },
-  { id: '0000009', title: '펀딩 제목입니다 펀딩 제목입니다.', percent: '50%',   joinNumber: '800명', totalFunding: '₩ 900,000', endAt: '2025. 09. 18' },
-  { id: '0000010', title: '펀딩 제목입니다 펀딩 제목입니다.', percent: '1%',    joinNumber: '800명', totalFunding: '₩ 900,000', endAt: '2025. 09. 18' },
-  { id: '0000011', title: '펀딩 제목입니다 펀딩 제목입니다.', percent: '10%',   joinNumber: '800명', totalFunding: '₩ 900,000', endAt: '2025. 09. 18' },
-  { id: '0000012', title: '펀딩 제목입니다 펀딩 제목입니다.', percent: '20%',   joinNumber: '800명', totalFunding: '₩ 900,000', endAt: '2025. 09. 18' },
-  { id: '0000013', title: '펀딩 제목입니다 펀딩 제목입니다.', percent: '45%',   joinNumber: '800명', totalFunding: '₩ 900,000', endAt: '2025. 09. 18' },
-  { id: '0000014', title: '펀딩 제목입니다 펀딩 제목입니다.', percent: '79%',   joinNumber: '800명', totalFunding: '₩ 900,000', endAt: '2025. 09. 18' },
+  {
+    id: '0000001',
+    title: '펀딩 제목입니다 펀딩 제목입니다.',
+    percent: '100%',
+    joinNumber: '800명',
+    totalFunding: '₩ 900,000',
+    endAt: '2025. 09. 18',
+  },
+  {
+    id: '0000002',
+    title: '펀딩 제목입니다 펀딩 제목입니다.',
+    percent: '1500%',
+    joinNumber: '800명',
+    totalFunding: '₩ 900,000',
+    endAt: '2025. 09. 18',
+  },
+  {
+    id: '0000003',
+    title: '펀딩 제목입니다 펀딩 제목입니다.',
+    percent: '2040%',
+    joinNumber: '800명',
+    totalFunding: '₩ 900,000',
+    endAt: '2025. 09. 18',
+  },
+  {
+    id: '0000004',
+    title: '펀딩 제목입니다 펀딩 제목입니다.',
+    percent: '300%',
+    joinNumber: '800명',
+    totalFunding: '₩ 900,000',
+    endAt: '2025. 09. 18',
+  },
+  {
+    id: '0000005',
+    title: '펀딩 제목입니다 펀딩 제목입니다.',
+    percent: '5000%',
+    joinNumber: '800명',
+    totalFunding: '₩ 900,000',
+    endAt: '2025. 09. 18',
+  },
+  {
+    id: '0000006',
+    title: '펀딩 제목입니다 펀딩 제목입니다.',
+    percent: '104%',
+    joinNumber: '800명',
+    totalFunding: '₩ 900,000',
+    endAt: '2025. 09. 18',
+  },
+  {
+    id: '0000007',
+    title: '펀딩 제목입니다 펀딩 제목입니다.',
+    percent: '80%',
+    joinNumber: '800명',
+    totalFunding: '₩ 900,000',
+    endAt: '2025. 09. 18',
+  },
+  {
+    id: '0000008',
+    title: '펀딩 제목입니다 펀딩 제목입니다.',
+    percent: '70%',
+    joinNumber: '800명',
+    totalFunding: '₩ 900,000',
+    endAt: '2025. 09. 18',
+  },
+  {
+    id: '0000009',
+    title: '펀딩 제목입니다 펀딩 제목입니다.',
+    percent: '50%',
+    joinNumber: '800명',
+    totalFunding: '₩ 900,000',
+    endAt: '2025. 09. 18',
+  },
+  {
+    id: '0000010',
+    title: '펀딩 제목입니다 펀딩 제목입니다.',
+    percent: '1%',
+    joinNumber: '800명',
+    totalFunding: '₩ 900,000',
+    endAt: '2025. 09. 18',
+  },
+  {
+    id: '0000011',
+    title: '펀딩 제목입니다 펀딩 제목입니다.',
+    percent: '10%',
+    joinNumber: '800명',
+    totalFunding: '₩ 900,000',
+    endAt: '2025. 09. 18',
+  },
+  {
+    id: '0000012',
+    title: '펀딩 제목입니다 펀딩 제목입니다.',
+    percent: '20%',
+    joinNumber: '800명',
+    totalFunding: '₩ 900,000',
+    endAt: '2025. 09. 18',
+  },
+  {
+    id: '0000013',
+    title: '펀딩 제목입니다 펀딩 제목입니다.',
+    percent: '45%',
+    joinNumber: '800명',
+    totalFunding: '₩ 900,000',
+    endAt: '2025. 09. 18',
+  },
+  {
+    id: '0000014',
+    title: '펀딩 제목입니다 펀딩 제목입니다.',
+    percent: '79%',
+    joinNumber: '800명',
+    totalFunding: '₩ 900,000',
+    endAt: '2025. 09. 18',
+  },
 ];
 
 const columns: FundingTableColumn<FundingRow>[] = [
-  { key: 'title',        header: '펀딩제목',  align: 'center', sortable: true },
-  { key: 'percent',      header: '달성률',    align: 'center', sortable: true },
-  { key: 'joinNumber',   header: '참여자 수', align: 'center', sortable: true },
+  { key: 'title', header: '펀딩제목', align: 'center', sortable: true },
+  { key: 'percent', header: '달성률', align: 'center', sortable: true },
+  { key: 'joinNumber', header: '참여자 수', align: 'center', sortable: true },
   { key: 'totalFunding', header: '총 펀딩액', align: 'center', sortable: true },
-  { key: 'endAt',        header: '마감기한',  align: 'center', sortable: true },
+  { key: 'endAt', header: '마감기한', align: 'center', sortable: true },
 ];
 
 function getPageRange(current: number, total: number, count = 5) {
@@ -51,10 +154,21 @@ function getPageRange(current: number, total: number, count = 5) {
 }
 
 export default function FundingManagePage() {
-  const [sortKey, setSortKey] = useState<keyof FundingRow | undefined>(undefined);
+  useEffect(() => {
+    const loadCategory = async () => {
+      const categoryData = await fetchCategories();
+      console.log(categoryData.data);
+      setCategoryList(categoryData.data);
+    };
+    loadCategory();
+  }, []);
+  const [sortKey, setSortKey] = useState<keyof FundingRow | undefined>(
+    undefined,
+  );
   const [sortDirection, setSortDirection] = useState<SortDirection>('asc');
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
+  const [categoryList, setCategoryList] = useState<Category[]>();
 
   const [page, setPage] = useState(1);
   const size = 10;
@@ -73,7 +187,8 @@ export default function FundingManagePage() {
     [filtered, page, size],
   );
 
-  const handleSelectionChange = (keys: Key[]) => setSelectedIds(keys.map(String));
+  const handleSelectionChange = (keys: Key[]) =>
+    setSelectedIds(keys.map(String));
   const updateSort = (key: string, direction: SortDirection) => {
     setSortKey(key as keyof FundingRow);
     setSortDirection(direction);
@@ -100,16 +215,28 @@ export default function FundingManagePage() {
         onSortChange={updateSort}
         selectedRowKeys={selectedIds}
         onSelectionChange={handleSelectionChange}
-        onRowClick={() => { console.log('row click'); }}
+        onRowClick={() => {
+          console.log('row click');
+        }}
       />
 
       {/* 페이지네이션 + 검색 */}
       <div className="relative mt-6 flex items-center justify-center">
         <nav className="flex items-center gap-2 text-sm text-[var(--color-gray-700)]">
-          <button onClick={() => setPage(1)} disabled={page <= 1} className="px-2 py-1 hover:text-primary disabled:opacity-40" aria-label="First">
+          <button
+            onClick={() => setPage(1)}
+            disabled={page <= 1}
+            className="px-2 py-1 hover:text-primary disabled:opacity-40"
+            aria-label="First"
+          >
             «
           </button>
-          <button onClick={() => setPage(Math.max(1, page - 1))} disabled={page <= 1} className="px-2 py-1 hover:text-primary disabled:opacity-40" aria-label="Previous">
+          <button
+            onClick={() => setPage(Math.max(1, page - 1))}
+            disabled={page <= 1}
+            className="px-2 py-1 hover:text-primary disabled:opacity-40"
+            aria-label="Previous"
+          >
             ‹
           </button>
 
@@ -124,10 +251,20 @@ export default function FundingManagePage() {
             </button>
           ))}
 
-          <button onClick={() => setPage(Math.min(totalPages, page + 1))} disabled={page >= totalPages} className="px-2 py-1 hover:text-primary disabled:opacity-40" aria-label="Next">
+          <button
+            onClick={() => setPage(Math.min(totalPages, page + 1))}
+            disabled={page >= totalPages}
+            className="px-2 py-1 hover:text-primary disabled:opacity-40"
+            aria-label="Next"
+          >
             ›
           </button>
-          <button onClick={() => setPage(totalPages)} disabled={page >= totalPages} className="px-2 py-1 hover:text-primary disabled:opacity-40" aria-label="Last">
+          <button
+            onClick={() => setPage(totalPages)}
+            disabled={page >= totalPages}
+            className="px-2 py-1 hover:text-primary disabled:opacity-40"
+            aria-label="Last"
+          >
             »
           </button>
         </nav>
@@ -143,7 +280,10 @@ export default function FundingManagePage() {
             placeholder="검색어를 입력하세요"
             className="h-full flex-1 bg-transparent pr-8 outline-none placeholder:text-[var(--color-gray-400)]"
           />
-          <SearchIcon className="absolute right-4 h-4 w-4 text-primary" aria-hidden />
+          <SearchIcon
+            className="absolute right-4 h-4 w-4 text-primary"
+            aria-hidden
+          />
         </form>
       </div>
 
@@ -152,6 +292,7 @@ export default function FundingManagePage() {
         open={openModal}
         mode="create"
         onClose={() => setOpenModal(false)}
+        categoryList={categoryList as Category[]}
       />
     </>
   );
