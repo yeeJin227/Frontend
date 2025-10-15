@@ -2,8 +2,8 @@
 
 import Image from 'next/image';
 import Link from 'next/link';
-import { useMemo } from 'react';
-import { forestCreators } from '@/data/forestCreators';
+import { useEffect, useMemo, useState } from 'react';
+import { fetchArtistList } from '@/services/productArtist';
 
 type Creator = { id: string; name: string };
 
@@ -24,11 +24,6 @@ const treeImages = [
   '/tree1.png','/tree2.png','/tree3.png','/tree4.png',
   '/tree5.png','/tree6.png','/tree7.png','/tree8.png',
 ];
-
-const sampleCreators: Creator[] = forestCreators.map((creator) => ({
-  id: creator.id,
-  name: creator.name,
-}));
 
 // ------------------- 노이즈 유틸 -------------------
 function hash2D(ix: number, iy: number) {
@@ -279,10 +274,57 @@ function createForestLayout(creators: Creator[]): ForestLayout {
 }
 
 export default function ForestPage() {
+  const [creators, setCreators] = useState<Creator[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let active = true;
+
+    const load = async () => {
+      try {
+        setLoading(true);
+        setError(null);
+        const list = await fetchArtistList();
+        if (!active) return;
+
+        const normalized: Creator[] = list.map((item) => ({
+          id: String(item.artistId),
+          name: item.artistName,
+        }));
+
+        setCreators(normalized);
+      } catch (err) {
+        if (!active) return;
+        const message = err instanceof Error ? err.message : '작가 목록을 불러오지 못했습니다.';
+        setError(message);
+        setCreators([]);
+      } finally {
+        if (active) {
+          setLoading(false);
+        }
+      }
+    };
+
+    void load();
+
+    return () => {
+      active = false;
+    };
+  }, []);
+
   const { markers: treeMarkers, containerHeight } = useMemo(
-    () => createForestLayout(sampleCreators),
-    [],
+    () => createForestLayout(creators),
+    [creators],
   );
+
+  const statusMessage = loading
+    ? '작가 목록을 불러오는 중입니다…'
+    : error
+      ? error
+      : creators.length === 0
+        ? '등록된 작가가 없습니다.'
+        : null;
 
   return (
     <main className="relative flex-1 overflow-auto bg-[#f5f5f5]">
@@ -296,6 +338,11 @@ export default function ForestPage() {
         }}
       >
         <div className="relative flex-1">
+          {statusMessage ? (
+            <div className="pointer-events-none absolute left-1/2 top-12 z-20 -translate-x-1/2 rounded-full bg-white/90 px-5 py-3 text-sm font-medium text-[var(--color-gray-700)] shadow">
+              {statusMessage}
+            </div>
+          ) : null}
           {treeMarkers.map((m) => (
             <Link
               key={m.creator.id}
