@@ -57,13 +57,13 @@ const OrderSummary = ({ allItems }: OrderSummaryProps) => {
   };
 
   // 로딩 중이거나 데이터가 없으면 기본값 표시
-  const totalPrice = totalAmountData?.data || 0;
-  const shippingFee = 3000; // 고정 배송비
-  const finalPrice = +totalPrice + +shippingFee;
+  // const totalPrice = totalAmountData?.data || 0;
+  // const shippingFee = 3000; // 고정 배송비
+  // const finalPrice = totalPrice === 0 ? 0 : +totalPrice + +shippingFee;
 
   return (
     <>
-      {/* 주문 요약 */}
+      {/* 주문 요약 
       <section className="mb-8">
         <div className="flex justify-center gap-16 text-2xl">
           <div className="text-center">
@@ -97,7 +97,7 @@ const OrderSummary = ({ allItems }: OrderSummaryProps) => {
             </div>
           </div>
         </div>
-      </section>
+      </section>*/}
 
       {/* 주문 버튼 */}
       <section className="flex justify-center">

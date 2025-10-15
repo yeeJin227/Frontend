@@ -131,12 +131,15 @@ function LoginCardContent() {
                       },
                     });
                     if (data.needsAdditionalInfo) {
-                      toast.info('추가 정보 입력이 필요합니다.', { duration: 2000 });
+                      toast.info('추가 정보 입력이 필요합니다.', {
+                        duration: 2000,
+                      });
                       return;
                     }
                   }
                   toast.success('로그인되었습니다!', { duration: 2000 });
-                  const nextRoute = data?.selectedRole === 'ADMIN' ? '/admin/main' : '/';
+                  const nextRoute =
+                    data?.selectedRole === 'ADMIN' ? '/admin/main' : '/';
                   router.push(nextRoute);
                 } catch (err) {
                   const msg =

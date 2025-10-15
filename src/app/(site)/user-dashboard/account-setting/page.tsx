@@ -2,6 +2,8 @@
 import { useState, useEffect } from 'react';
 import Image from 'next/image';
 import Button from '@/components/Button';
+import { useLogout } from '@/hooks/useLogout';
+import { useRouter } from 'next/navigation';
 
 // API 응답 데이터의 타입을 정의하면 더 안전하게 코드를 작성할 수 있습니다.
 interface UserData {
@@ -40,6 +42,8 @@ export default function AccountSetting() {
   const API_BASE_URL = (
     process.env.NEXT_PUBLIC_API_BASE_URL ?? 'http://localhost:8080'
   ).replace(/\/+$/, '');
+  const { logout } = useLogout();
+  const router = useRouter();
 
   // 컴포넌트가 마운트될 때 API를 호출하기 위해 useEffect 사용
   useEffect(() => {
@@ -187,8 +191,28 @@ export default function AccountSetting() {
     }
   };
 
-  const handleCancel = () => {
-    console.log('취소');
+  const handleWithDraw = async () => {
+    if (confirm('회원탈퇴를 진행하시겠습니까?')) {
+      if (!confirm('정말로 회원탈퇴를 진행하시겠습니까?')) return;
+    } else return;
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/users/me`, {
+        method: 'DELETE',
+        credentials: 'include',
+      });
+
+      if (!response.ok)
+        throw new Error(
+          `회원 탈퇴 실패 : ${response.status} ${response.statusText}`,
+        );
+      if (response.status === 200) {
+        console.log('회원탈퇴 완료');
+        logout();
+        router.push('/');
+      }
+    } catch (error) {
+      console.error(error);
+    }
   };
 
   return (
@@ -319,7 +343,7 @@ export default function AccountSetting() {
 
         {/* 버튼 */}
         <div className="flex justify-end gap-3 pt-6">
-          <Button onClick={handleCancel} variant="danger">
+          <Button onClick={handleWithDraw} variant="danger">
             회원 탈퇴
           </Button>
           <Button onClick={handleSubmit}>정보 수정하기</Button>
