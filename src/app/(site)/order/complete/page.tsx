@@ -29,15 +29,12 @@ async function getOrderDetail(orderId: string) {
     return response.json();
   }
 }
-
-interface OrderCompletePageProps {
-  searchParams: {
-    orderId?: string;
-  };
-}
-
-const OrderCompletePage = async ({ searchParams }: OrderCompletePageProps) => {
-  const orderId = searchParams.orderId;
+const OrderCompletePage = async ({
+  searchParams,
+}: {
+  searchParams: { orderId?: string };
+}) => {
+  const orderId = searchParams?.orderId;
 
   // orderId가 없으면 메인으로 리다이렉트
   if (!orderId) {

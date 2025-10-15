@@ -9,7 +9,10 @@ import { CartItemResponse } from '@/app/(site)/order/types/cart.types';
 import { mapCartItemsResponseToCartItems } from '@/app/(site)/order/types/mapper';
 import { createOrder } from '@/app/(site)/order/api/orderApi';
 import { CreateOrderRequest } from '@/app/(site)/order/types/order.types';
-import { getMoricashBalance } from '@/app/(site)/order/api/moricashApi';
+import {
+  getMoricashBalance,
+  payMoricash,
+} from '@/app/(site)/order/api/moricashApi';
 
 interface PaymentFormProps {
   cartItems: CartItemResponse[];
@@ -53,8 +56,26 @@ const PaymentForm = ({ cartItems }: PaymentFormProps) => {
   // 주문 생성 mutation
   const createOrderMutation = useMutation({
     mutationFn: createOrder,
-    onSuccess: (response) => {
-      router.push(`/order/complete?orderId=${response.orderId}`);
+    onSuccess: async (response) => {
+      try {
+        alert(
+          `orderId : ${response.orderId}\n totalPrice : ${totalPrice}\n usedMoriCash : ${moricashData?.availableBalance}`,
+        );
+        await payMoricash({
+          orderId: response.orderId,
+          totalPrice: totalPrice + 3000,
+          usedMoriCash: totalPrice + 3000,
+        });
+
+        // 결제 성공 후 페이지 이동
+        router.push(`/order/complete?orderId=${response.orderId}`);
+      } catch (error) {
+        alert(
+          error instanceof Error
+            ? error.message
+            : '결제 처리 중 문제가 발생했습니다. 다시 시도해주세요.',
+        );
+      }
     },
     onError: (error) => {
       alert(

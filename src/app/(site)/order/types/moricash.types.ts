@@ -14,21 +14,30 @@ export interface MoricashBalanceResponse {
   data: MoricashBalance;
 }
 
-/*
-{
-  "orderItems": [
-    {
-      "productUuid": "3fa85f64-5717-4562-b3fc-2c963f66afa6",
-      "quantity": 0,
-      "optionInfo": "string"
-    }
-  ],
-  "shippingAddress1": "string",
-  "shippingAddress2": "string",
-  "shippingZip": "string",
-  "recipientName": "string",
-  "recipientPhone": "010-2279-9289",
-  "deliveryRequest": "string",
-  "paymentMethod": "MORI_CASH"
+export interface MoriCashPaymentRequest {
+  orderId: number;
+  totalPrice: number;
+  usedMoriCash: number;
 }
-*/
+
+export interface MoriCashPaymentResponseData {
+  paymentId: number;
+  orderId: number;
+  userId: number;
+  totalPrice: number;
+  usedMoriCash: number;
+  status: 'PENDING' | 'COMPLETED' | 'FAILED';
+  cashTransactionId: string;
+  balanceAfter: number;
+  transactionType: 'CHARGING' | 'PAYMENT';
+  description: string;
+  paidAt: string;
+  createdAt: string;
+}
+
+// API 응답 구조 (성공 및 실패 모두를 포함할 수 있는 일반적인 구조)
+export interface ApiResponse<T> {
+  resultCode: string;
+  msg: string;
+  data: T | null;
+}
