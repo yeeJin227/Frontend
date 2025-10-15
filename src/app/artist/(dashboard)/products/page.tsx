@@ -21,7 +21,6 @@ type RowEx = ProductRow & {
 type ArtistProductItem = {
   productUuid?: string;
   uuid?: string;
-  productUUID?: string;
   product?: { uuid?: string };
   productId?: string | number;
   id?: string | number;
@@ -194,7 +193,7 @@ export default function ProductsPage() {
         const mapped: RowEx[] = content.map((p, idx) => {
           // 가능한 후보에서 uuid 추출
           let productUuid: string | undefined =
-            p.productUuid ?? p.uuid ?? p.productUUID ?? p.product?.uuid ?? undefined;
+            p.productUuid ?? p.uuid ?? p.productUuid ?? p.product?.uuid ?? undefined;
 
           const productId: string | undefined =
             p.productId != null
@@ -229,12 +228,16 @@ export default function ProductsPage() {
 
           // 스냅샷 우선 없으면 서버 상태
           const snap = productId ? snapshotsRef.current[productId] : undefined;
-          const rawCode =
-            p.sellingStatus ??
-            p.status ??
-            (typeof p.selling === 'boolean' ? (p.selling ? 'SELLING' : 'STOPPED') : 'SELLING');
-          let code = String(rawCode).toUpperCase();
-          if (snap) code = computeStatusFromPayload(snap);
+          // 서버값 
+          let code = (p.sellingStatus ?? p.status ?? '').toUpperCase();
+          
+          if (!code && snap) {
+            code = computeStatusFromPayload(snap);
+          }
+
+          if (!code) code = 'SELLING';
+
+          //  라벨 변환
           const status = STATUS_LABEL[code] ?? code;
 
           return {
@@ -243,7 +246,7 @@ export default function ProductsPage() {
             author: p.artist?.name ?? p.brandName ?? '내 브랜드',
             status,
             createdAt,
-            productUuid,
+            productUuid: p.productUuid,
             productId,
             payloadSnapshot: productId ? snapshotsRef.current[productId] : undefined,
           };
@@ -277,11 +280,19 @@ export default function ProductsPage() {
 
   // 생성 완료
   const handleCreated = ({ productUuid, payload }: { productUuid: string; payload: ProductCreatePayload }) => {
-    const nameKey = `내 브랜드|||${payload.title?.trim() ?? ''}`;
-    if (payload.title?.trim()) {
-      uuidByNameRef.current[nameKey] = productUuid;
-      saveJson(UUID_BY_NAME_KEY, uuidByNameRef.current);
-    }
+
+    setRows((prev) => [
+   {
+     id: makeRowId(1, 0),
+     name: payload.title,
+     author: payload.brand,
+     status: '판매중',
+     createdAt: new Date().toLocaleDateString('en-CA'),
+     productUuid, // 서버가 준 UUID
+     payloadSnapshot: payload,
+   },
+   ...prev,
+ ]);
 
     const nextTotal = totalElements + 1;
     const nextPages = Math.max(1, Math.ceil(nextTotal / size));

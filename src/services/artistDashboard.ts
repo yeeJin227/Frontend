@@ -20,10 +20,8 @@ function toMainQuery(params: ArtistMainParams) {
   return sp.toString();
 }
 
-/**
- * 작가 대시보드 메인 현황 조회
- * - 404(작가 프로필 없음)는 정상 흐름 → {notFound:true}로 반환
- */
+// 작가 대시보드 메인 현황 api
+
 export async function fetchArtistMain(params: ArtistMainParams = {}) {
   const qs = toMainQuery(params);
   const url = `${process.env.NEXT_PUBLIC_API_BASE_URL}/api/dashboard/artist/main${qs ? `?${qs}` : ''}`;
@@ -226,4 +224,61 @@ export async function fetchArtistSettings() {
   }
 
   return { notFound: false, data: json.data } as const;
+}
+
+
+// 주문 취소
+export async function cancelArtistOrder(orderId: number | string, cancelReason: string, orderItemIds: number[]) {
+  const token = typeof window !== 'undefined' ? localStorage.getItem('accessToken') : null;
+
+  const res = await fetch(`${process.env.NEXT_PUBLIC_API_BASE_URL}/api/orders/${orderId}/cancel`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      ...(token ? { Authorization: `Bearer ${token}` } : {}), 
+    },
+    body: JSON.stringify({
+      cancelReason,
+      orderItemIds,
+    }),
+    credentials: 'include', 
+  });
+
+  if (!res.ok) {
+    const data = await res.json().catch(() => ({}));
+    const msg = data?.msg || `주문 취소 실패 (${res.status})`;
+    throw new Error(msg);
+  }
+
+  return res.json();
+}
+
+
+// 주문 상태 변경
+export async function updateArtistOrderStatus(orderId: number | string, status: string) {
+  const token =
+    typeof window !== 'undefined'
+      ? localStorage.getItem('accessToken')
+      : null;
+
+  const res = await fetch(
+    `${process.env.NEXT_PUBLIC_API_BASE_URL}/api/orders/${orderId}/status`,
+    {
+      method: 'PATCH',
+      headers: {
+        'Content-Type': 'application/json',
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      },
+      body: JSON.stringify({ status }),
+      credentials: 'include',
+    }
+  );
+
+  if (!res.ok) {
+    const data = await res.json().catch(() => ({}));
+    const msg = data?.msg || `주문 상태 변경 실패 (${res.status})`;
+    throw new Error(msg);
+  }
+
+  return res.json();
 }

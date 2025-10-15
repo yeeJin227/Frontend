@@ -174,6 +174,9 @@ export interface ArtistOrder {
   buyer: ArtistOrderBuyer;
   shipment: ArtistOrderShipment | null;
   permissions: ArtistOrderPermissions | null;
+  orderItems?: {
+    orderItemId: number;
+  }[];
 }
 
 export interface ArtistOrderBuyer {

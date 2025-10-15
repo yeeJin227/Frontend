@@ -1,16 +1,18 @@
-
 'use client';
 
 import { useState, useEffect } from 'react';
-import MainHero from '@/assets/mainhero.svg';
+import Image, { StaticImageData } from 'next/image';
 
-type Slide = { id: number; Svg: React.FC<React.SVGProps<SVGSVGElement>> };
+import MainHero1 from '@/assets/mainhero1.png';
+import MainHero2 from '@/assets/mainhero2.png';
+import MainHero3 from '@/assets/mainhero3.png';
+
+type Slide = { id: number; Img: StaticImageData };
 
 const heroImages: Slide[] = [
-  { id: 1, Svg: MainHero },
-  { id: 2, Svg: MainHero },
-  { id: 3, Svg: MainHero },
-  { id: 4, Svg: MainHero },
+  { id: 1, Img: MainHero1 },
+  { id: 2, Img: MainHero2 },
+  { id: 3, Img: MainHero3 },
 ];
 
 export function MainHeroSlider() {
@@ -32,14 +34,17 @@ export function MainHeroSlider() {
         className="flex transition-transform duration-500 ease-in-out h-full"
         style={{ transform: `translateX(-${currentSlide * 100}%)` }}
       >
-        {heroImages.map(({ id, Svg }) => (
+        {heroImages.map(({ id, Img }) => (
           <div
             key={id}
             className="min-w-full h-full relative flex items-center justify-center"
           >
-            <Svg
-              className="absolute inset-0 w-full h-full"
-              preserveAspectRatio="xMidYMid slice"
+            <Image
+              src={Img}
+              alt={`슬라이드 ${id}`}
+              className="absolute inset-0 object-cover w-full h-full"
+              fill
+              priority={id === 1}
             />
           </div>
         ))}

@@ -18,7 +18,7 @@ import { useLogout } from '@/hooks/useLogout';
 
 function MenuIcon({ href }: { href: string }) {
   switch (href) {
-    case '/shop':
+    case '/order':
       return <Shop />;
     case '/mypage':
       return <Mypage />;
