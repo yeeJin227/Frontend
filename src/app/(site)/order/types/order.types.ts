@@ -35,28 +35,38 @@ export interface CreateOrderApiResponse {
 
 // ========== 주문 상세 조회 응답 타입 ==========
 
-export interface OrderItemResponse {
+export interface OrderItemDetail {
   orderItemId: number;
-  productId: number;
+  productUuid: string;
   productName: string;
-  productImageUrl: string;
-  price: number;
+  productThumbnailUrl: string;
   quantity: number;
+  price: number;
+  totalPrice: number;
   optionInfo: string;
 }
 
-export interface OrderDetailResponse {
+export interface OrderDetail {
   orderId: number;
   orderNumber: string;
-  status: 'PENDING' | 'CONFIRMED' | 'PAID' | 'CANCELLED';
+  status: 'PAYMENT_COMPLETED' | 'PENDING' | 'CONFIRMED' | 'CANCELLED';
+  totalQuantity: number;
   totalAmount: number;
   shippingFee: number;
-  items: OrderItemResponse[];
-  createdAt: string;
+  finalAmount: number;
+  shippingAddress1: string;
+  shippingAddress2: string;
+  shippingZip: string;
+  recipientName: string;
+  recipientPhone: string;
+  deliveryRequest: string;
+  paymentMethod: 'MORI_CASH';
+  orderDate: string;
+  orderItems: OrderItemDetail[];
 }
 
 export interface OrderDetailApiResponse {
   resultCode: string;
   msg: string;
-  data: OrderDetailResponse;
+  data: OrderDetail;
 }
