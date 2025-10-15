@@ -32,13 +32,7 @@ interface Order {
 }
 
 // --- 정렬 가능한 컬럼 타입 정의 (API Request의 sort 필드 기준) ---
-type SortColumn =
-  | 'productNumber' //에러
-  | 'productName'
-  | 'price' //에러
-  | 'sellingStatus' //에러
-  | 'orderDate'
-  | null;
+type SortColumn = 'productName' | 'totalAmount' | 'status' | 'orderDate' | null;
 type SortDirection = 'asc' | 'desc';
 
 // --- 디바운스 커스텀 훅 ---
@@ -209,29 +203,9 @@ export default function OrderList() {
               <th className="w-16 px-4 py-4"></th>
               {/* 각 헤더의 onClick 핸들러에 API 필드명 전달 */}
               <th className="px-4 py-4 text-left">
-                <button
-                  onClick={() => handleSort('productNumber')}
-                  className="flex items-center gap-1 text-sm font-medium text-gray-700 hover:text-gray-900"
-                >
+                <div className="text-sm font-medium text-gray-700">
                   주문번호
-                  <svg
-                    className={`w-4 h-4 transition-transform ${
-                      sortColumn === 'productNumber' && sortDirection === 'asc'
-                        ? 'rotate-180'
-                        : ''
-                    }`}
-                    fill="none"
-                    stroke="currentColor"
-                    viewBox="0 0 24 24"
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth={2}
-                      d="M19 9l-7 7-7-7"
-                    />
-                  </svg>
-                </button>
+                </div>
               </th>
               <th className="px-4 py-4 text-left">
                 <div className="text-sm font-medium text-gray-700">이미지</div>
@@ -261,18 +235,15 @@ export default function OrderList() {
                   </svg>
                 </button>
               </th>
-              <th className="px-4 py-4 text-center">
-                <div className="text-sm font-medium text-gray-700">수량</div>
-              </th>
               <th className="px-4 py-4 text-left">
                 <button
-                  onClick={() => handleSort('price')}
+                  onClick={() => handleSort('totalAmount')}
                   className="flex items-center gap-1 text-sm font-medium text-gray-700 hover:text-gray-900"
                 >
-                  구매금액
+                  수량
                   <svg
                     className={`w-4 h-4 transition-transform ${
-                      sortColumn === 'price' && sortDirection === 'asc'
+                      sortColumn === 'totalAmount' && sortDirection === 'asc'
                         ? 'rotate-180'
                         : ''
                     }`}
@@ -290,14 +261,19 @@ export default function OrderList() {
                 </button>
               </th>
               <th className="px-4 py-4 text-left">
+                <div className="text-sm font-medium text-gray-700">
+                  구매금액
+                </div>
+              </th>
+              <th className="px-4 py-4 text-left">
                 <button
-                  onClick={() => handleSort('sellingStatus')}
+                  onClick={() => handleSort('status')}
                   className="flex items-center gap-1 text-sm font-medium text-gray-700 hover:text-gray-900"
                 >
                   주문상태
                   <svg
                     className={`w-4 h-4 transition-transform ${
-                      sortColumn === 'sellingStatus' && sortDirection === 'asc'
+                      sortColumn === 'status' && sortDirection === 'asc'
                         ? 'rotate-180'
                         : ''
                     }`}
