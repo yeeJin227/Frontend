@@ -1,21 +1,22 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import FullHeart from '@/assets/icon/full_heart.svg';
 import EmptyHeart from '@/assets/icon/empty_heart.svg';
+import { useAuthStore } from '@/stores/authStore';
+import { useToast } from '@/components/ToastProvider';
 
 interface ProductInfoProps {
   id: number;
   title: string;
   category: string;
-  price: number; // 추가
-  stock: number; // 추가
-  soldCount: number; // 추가
+  price: number;
+  stock: number;
+  soldCount: number;
   currentAmount: number;
   targetAmount: number;
   remainingDays: number;
   participants: number;
-  progress: number;
 }
 
 export interface addCartRequest {
@@ -25,14 +26,6 @@ export interface addCartRequest {
   fundingPrice: number;
   fundingStock: number;
 }
-
-// {
-//   "fundingId": 10,
-//   "quantity": 1,
-//   "cartType": "FUNDING",
-//   "fundingPrice": 5000,
-//   "fundingStock": 50
-// }
 
 export default function ProductInfo({
   id,
@@ -49,11 +42,65 @@ export default function ProductInfo({
   const API_BASE_URL = (
     process.env.NEXT_PUBLIC_API_BASE_URL ?? 'http://localhost:8080'
   ).replace(/\/+$/, '');
+
   const [isWishlisted, setIsWishlisted] = useState(false);
+  const [isTogglingWishlist, setIsTogglingWishlist] = useState(false);
+  const [isCheckingWishlist, setIsCheckingWishlist] = useState(false);
+
   const isFundingEnded = remainingDays < 0;
   const isOutOfStock = stock <= 0;
+  const role = useAuthStore((store) => store.role);
+  const toast = useToast();
+
+  // 🔥 페이지 진입 시 찜 상태 확인
+  useEffect(() => {
+    const checkWishlistStatus = async () => {
+      // 로그인하지 않았으면 확인하지 않음
+      if (!role) {
+        setIsWishlisted(false);
+        return;
+      }
+
+      setIsCheckingWishlist(true);
+
+      try {
+        const response = await fetch(
+          `${API_BASE_URL}/api/fundings/${id}/wish/check`,
+          {
+            method: 'GET',
+            credentials: 'include',
+          },
+        );
+
+        if (!response.ok) {
+          // 404나 다른 에러는 찜하지 않은 상태로 처리
+          console.warn('찜 상태 확인 실패:', response.status);
+          setIsWishlisted(false);
+          return;
+        }
+
+        const result = await response.json();
+
+        // API 응답 구조에 따라 조정 필요
+        // 예: { resultCode: "200", msg: "success", data: true }
+        setIsWishlisted(result.data === true || result.data === 'true');
+      } catch (error) {
+        console.error('찜 상태 확인 중 오류:', error);
+        // 에러 발생 시 찜하지 않은 상태로 처리
+        setIsWishlisted(false);
+      } finally {
+        setIsCheckingWishlist(false);
+      }
+    };
+
+    checkWishlistStatus();
+  }, [id, role, API_BASE_URL]); // role이 변경되면 다시 확인
 
   const handleAddCart = async () => {
+    if (!role) {
+      toast.error('로그인이 필요한 서비스입니다.');
+      return;
+    }
     try {
       const response = await fetch(`${API_BASE_URL}/api/cart`, {
         method: 'POST',
@@ -73,9 +120,61 @@ export default function ProductInfo({
       if (!response.ok) {
         throw new Error(`Error : ${response.status} ${response.statusText}`);
       }
-      if (response.status === 200) console.log(response);
+      if (response.status === 200) {
+        toast.success('장바구니에 추가되었습니다.');
+      }
     } catch (error) {
       console.error(error);
+      toast.error('장바구니 추가에 실패했습니다.');
+    }
+  };
+
+  const handleWishlistToggle = async () => {
+    if (isTogglingWishlist) return;
+    if (!role) {
+      toast.error('로그인이 필요한 서비스입니다.');
+      return;
+    }
+
+    setIsTogglingWishlist(true);
+
+    try {
+      // 현재 상태에 따라 메서드 결정
+      const method = isWishlisted ? 'DELETE' : 'POST';
+
+      console.log(`찜 ${method === 'POST' ? '추가' : '제거'} 요청 중...`);
+
+      const response = await fetch(`${API_BASE_URL}/api/fundings/${id}/wish`, {
+        method: method,
+        credentials: 'include',
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        console.error('서버 에러:', errorData);
+        throw new Error(
+          `위시리스트 처리 실패: ${response.status} ${
+            errorData.msg || response.statusText
+          }`,
+        );
+      }
+
+      const result = await response.json();
+      console.log('서버 응답:', result);
+
+      // 상태 토글
+      if (isWishlisted) {
+        setIsWishlisted(false);
+        toast.success('찜 목록에서 제거되었습니다.');
+      } else {
+        setIsWishlisted(true);
+        toast.success('찜 목록에 추가되었습니다.');
+      }
+    } catch (error) {
+      console.error('위시리스트 토글 중 오류 발생:', error);
+      toast.error('위시리스트 처리에 실패했습니다.');
+    } finally {
+      setIsTogglingWishlist(false);
     }
   };
 
@@ -89,7 +188,7 @@ export default function ProductInfo({
       </div>
 
       <div className="space-y-2 grid gap-7 text-[26px]">
-        {/* 가격 정보 추가 */}
+        {/* 가격 정보 */}
         <div>
           <p>가격</p>
           <div className="text-3xl font-bold text-gray-900">
@@ -98,7 +197,7 @@ export default function ProductInfo({
           </div>
         </div>
 
-        {/* 재고/판매 정보 추가 */}
+        {/* 재고/판매 정보 */}
         <div>
           <p>재고 현황</p>
           <div className="flex gap-4 items-center">
@@ -172,10 +271,11 @@ export default function ProductInfo({
           예약 구매
         </button>
         <button
-          disabled={isFundingEnded}
-          onClick={() => setIsWishlisted(!isWishlisted)}
+          id="wishList"
+          onClick={handleWishlistToggle}
+          disabled={isFundingEnded || isTogglingWishlist || isCheckingWishlist}
           className={`p-3 border rounded-lg transition-colors ${
-            isFundingEnded
+            isFundingEnded || isTogglingWishlist || isCheckingWishlist
               ? 'border-gray-300 bg-gray-100 cursor-not-allowed opacity-50'
               : 'border-gray-300 hover:border-primary'
           }`}

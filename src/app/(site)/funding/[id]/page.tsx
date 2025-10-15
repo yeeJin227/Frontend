@@ -103,7 +103,6 @@ export default async function FundingDetailPage({
             targetAmount={funding.targetAmount}
             remainingDays={funding.remainingDays}
             participants={funding.participants}
-            progress={funding.progress}
           />
         </div>
 
