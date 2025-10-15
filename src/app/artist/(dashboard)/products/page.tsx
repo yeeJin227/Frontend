@@ -4,7 +4,7 @@ import { useState, useMemo, type Key, useEffect, useRef } from 'react';
 import Button from '@/components/Button';
 import ProductCreateModal from '@/components/artist/ProductCreateModal';
 import { ProductCreatePayload, ProductRow } from '@/types/product';
-import { deleteProduct, fetchArtistProducts, getProducts } from '@/services/products';
+import { deleteProduct, fetchArtistProducts, fetchProductDetail, getProducts } from '@/services/products';
 import SearchIcon from '@/assets/icon/search.svg';
 import ArtistDataTable, { ArtistTableColumn, SortDirection } from '@/components/artist/ArtistDataTable';
 
@@ -339,19 +339,74 @@ export default function ProductsPage() {
 
   // 행 클릭
   const handleRowClick = async (row: RowEx) => {
-    const uuid = await resolveUuidForRow(row);
+  const uuid = await resolveUuidForRow(row);
+  if (!uuid) {
+    alert('이 상품의 UUID를 찾을 수 없습니다.');
+    return;
+  }
 
-    // 스냅샷 보강
-    let payloadSnapshot = row.payloadSnapshot;
-    if (!payloadSnapshot && row.productId) {
-      const cache = loadCache();
-      payloadSnapshot = cache[row.productId];
-    }
+  try {
+    // 상품 상세 불러오기
+    const detail = await fetchProductDetail(uuid);
 
-    setEditingRow({ ...row, productUuid: uuid, payloadSnapshot });
+    // 상세 응답 → 폼에 맞게 변환
+    const payload: ProductCreatePayload = {
+      brand: detail.brandName ?? '',
+      title: detail.name ?? '',
+      modelName: detail.essentialInfo?.productModelName ?? '',
+      category1: '', 
+      category2: '',
+      size: detail.essentialInfo?.size ?? '',
+      material: detail.essentialInfo?.material ?? '',
+      origin: detail.essentialInfo?.origin ?? '',
+      price: detail.price ?? 0,
+      discountRate: detail.discountRate ?? 0,
+      stock: detail.stock ?? 0,
+      minQty: detail.minQuantity ?? 1,
+      maxQty: detail.maxQuantity ?? 1,
+      bundleShipping: detail.bundleShippingAvailable ?? false,
+      shipping: {
+        type:
+          detail.deliveryType === 'CONDITIONAL_FREE'
+            ? 'CONDITIONAL'
+            : detail.deliveryType === 'PAID'
+            ? 'PAID'
+            : 'FREE',
+        fee: detail.deliveryCharge ?? 0,
+        freeThreshold: detail.conditionalFreeAmount ?? null,
+        jejuExtraFee: detail.additionalShippingCharge ?? 0,
+      },
+      plannedSale:
+        detail.isPlanned && detail.sellingStartDate
+          ? { startAt: detail.sellingStartDate, endAt: detail.sellingEndDate ?? null }
+          : null,
+      tags: detail.tags?.map((t: any) => t.name) ?? [],
+      options:
+        detail.options?.map((o: any) => ({
+          id: crypto.randomUUID(),
+          name: o.optionName,
+          stock: o.optionStock,
+          extraPrice: o.optionAdditionalPrice,
+        })) ?? [],
+      addons:
+        detail.additionalProducts?.map((a: any) => ({
+          id: crypto.randomUUID(),
+          name: a.name,
+          stock: a.stock,
+          extraPrice: a.price,
+        })) ?? [],
+      certification: detail.essentialInfo?.certification ?? false,
+      description: detail.description ?? '',
+    };
+
+    // 모달 열기
+    setEditingRow({ ...row, productUuid: uuid, payloadSnapshot: payload });
     setMode('edit');
     setOpenModal(true);
-  };
+  } catch (err) {
+    alert((err as Error).message || '상품 상세 조회 실패');
+  }
+};
 
   // 상단 - 선택 수정
   const handleTopEdit = () => {

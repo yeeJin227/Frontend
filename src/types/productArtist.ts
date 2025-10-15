@@ -6,6 +6,7 @@ export type ApiResponse<T> = {
 };
 
 export type ProductArtistInfo = {
+  artistId?: number; // 공개 프로필 API 호출용
   artistName: string;
   followerCount: number;
   approvedDate: string;        // "YYYY.MM.DD"

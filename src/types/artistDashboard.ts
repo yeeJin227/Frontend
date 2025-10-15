@@ -386,3 +386,29 @@ export interface ArtistSettingsPermissions {
   canEditBusiness: boolean;
   canEditPayout: boolean;
 }
+
+
+// 상품 상세 - 작가 기본정보
+export type ProductArtistInfo = {
+  artistId?: number; // 백엔드가 추가해줄 수 있음
+  artistName: string;
+  followerCount: number;
+  approvedDate: string;
+  profileImageUrl: string;
+  artistPageUrl: string;
+  description: string;
+};
+
+// 작가 공개 프로필 상세정보
+export type ArtistPublicProfile = {
+  artistId: number;
+  artistName: string;
+  profileImageUrl: string;
+  description: string;
+  mainProducts: string;
+  snsAccount: string;
+  followerCount: number;
+  totalSales: number;
+  productCount: number;
+  createdAt: string;
+};

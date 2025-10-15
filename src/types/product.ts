@@ -63,7 +63,8 @@ export type ProductDetail = {
   additionalShippingCharge: number;
   options: OptionResponse[];
   additionalProducts: AdditionalProductResponse[];
-  images: ProductImage[];
+  images: UploadedImageInfo[];
+  primaryImageUrl?: string | null;
   essentialInfo: ProductEssentialInfo;
   stock: number;
   description: string;
@@ -74,6 +75,8 @@ export type ProductDetail = {
   isPlanned: boolean;
   isRestock: boolean;
   tags: TagResponse[];
+  sellingStartDate?: string | null;
+  sellingEndDate?: string | null;
 };
 
 
@@ -217,12 +220,23 @@ export type ProductCreatePayload = {
     freeThreshold: number | null;
     jejuExtraFee: number;
   };
-  plannedSale: { startAt: string; endAt: string } | null;
+  plannedSale?: {
+    startAt: string;
+    endAt: string | null;   // ✅ null 허용으로 수정
+  } | null;
   tags: TagUI[];
   options: ProductOptionUI[];
   addons: ProductAddonUI[];
   certification:boolean;
-  bizInfo?: { companyName?: string; bizNumber?: string; ceoName?: string }; // 서버 전송 X
+  bizInfo?: {
+    businessName?: string;
+    bizNumber?: string;
+    ceoName?: string;
+    asManager?: string;              // ✅ 추가
+    email?: string;
+    businessAddress?: string;
+    telecomSalesNumber?: string;
+  }; // 서버 전송 X
   description: string;
   attachments?: File[]; // 서버 전송 X
 };

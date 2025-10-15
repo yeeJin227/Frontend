@@ -37,11 +37,6 @@ export default function ResultHeader({
         onChange={(e) => change(e.target.value as Sort)}
         className="focus:outline-none text-sm text-gray-500"
         >
-          {SORTS.map((item) => (
-            <option key={item} value={item}>
-              {item}
-            </option>
-          ))}
         </select>
         </div>
       </div>

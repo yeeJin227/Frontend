@@ -27,7 +27,7 @@ import type {
   ProductAddonUI,
 } from '@/types/product';
 
-// 유틸
+// === 유틸 ===
 
 // 서버 LocalDate(YYYY-MM-DD) 보내기
 const dateOnly = (s?: string | null) => {
@@ -42,23 +42,28 @@ const normalizeTagName = (s?: string) => (s ?? '').trim().toLowerCase();
 // 파일 고유키
 const fileKey = (f: File) => `${f.name}-${f.size}-${f.lastModified}`;
 
-// 작성 직전 파일 타입 동기화 
+// 허용 타입만: MAIN | THUMBNAIL
+type AllowedType = Extract<UploadType, 'MAIN' | 'THUMBNAIL'>;
+const asAllowed = (t: UploadType | undefined): AllowedType =>
+  t === 'MAIN' ? 'MAIN' : 'THUMBNAIL';
+
+// 파일 타입 배열에서 MAIN 인덱스 찾기
+const findMainIndex = (types: UploadType[]) => types.findIndex((t) => t === 'MAIN');
+
+// 작성 직전 파일 타입 동기화 (비허용 타입은 THUMBNAIL로 강제)
 function syncUploadedTypes(
   files: File[],
   fileTypes: UploadType[],
   uploaded: UploadedImageInfo[]
 ): UploadedImageInfo[] {
-  const byName = new Map<string, UploadType>();
-  files.forEach((f, i) => byName.set(f.name, fileTypes[i]));
+  const byName = new Map<string, AllowedType>();
+  files.forEach((f, i) => byName.set(f.name, asAllowed(fileTypes[i])));
 
   return uploaded.map((u, i) => {
-    // 1순위: originalFileName
     const tByName = u.originalFileName ? byName.get(u.originalFileName) : undefined;
     if (tByName) return { ...u, type: tByName };
-
-    // 2순위(폴백): 인덱스로 동기화
-    const tByIndex = fileTypes[i];
-    return tByIndex ? { ...u, type: tByIndex } : u;
+    const tByIndex = asAllowed(fileTypes[i]);
+    return { ...u, type: tByIndex };
   });
 }
 
@@ -75,9 +80,7 @@ function computeSellingStatusFromPayload(p: ProductCreatePayload): 'BEFORE_SELLI
   return 'SELLING';
 }
 
-// DTO
-
-// 사업자정보 API 
+// === DTO/API ===
 type ArtistBizInfo = {
   businessName?: string;
   businessNumber?: string;
@@ -168,7 +171,7 @@ function toProductCreateDto(
 
     images: (opts.uploadedImages ?? []).map((img) => ({
       url: img.url,
-      type: img.type,
+      type: asAllowed(img.type), // 안전: 비허용 타입이 와도 강제 캐스팅
       s3Key: img.s3Key,
       originalFileName: img.originalFileName,
     })),
@@ -180,36 +183,26 @@ function toProductCreateDto(
   };
 }
 
-
 type Props = {
   open: boolean;
   onClose: () => void;
-
-  // 생성
   onCreated?: (args: { productUuid: string; payload: ProductCreatePayload }) => void;
-
-  // 수정 /삭제
   mode?: 'create' | 'edit';
   productUuid?: string;
   initialPayload?: ProductCreatePayload;
   onUpdated?: (args: { productUuid: string; payload: ProductCreatePayload }) => void;
   onDeleted?: (args: { productUuid: string }) => void;
-
-  // 행의 productId (스냅샷 저장용)
   productId?: string;
-  // 현재 폼 스냅샷을 상위에 저장
   onSaveSnapshot?: (productId: string, payload: ProductCreatePayload) => void;
-
-  // 공통
   initialBrand?: string;
   initialBizInfo?: {
-    businessName?: string;    
-    businessNumber?: string;     
-    ownerName?: string;      
-    asManager?: string;         
-    email?: string;          
-    businessAddress?: string;   
-    telecomSalesNumber?: string; 
+    businessName?: string;
+    businessNumber?: string;
+    ownerName?: string;
+    asManager?: string;
+    email?: string;
+    businessAddress?: string;
+    telecomSalesNumber?: string;
   }
 };
 
@@ -227,7 +220,7 @@ export default function ProductCreateModal({
   initialBrand = '모리모리',
   initialBizInfo,
 }: Props) {
-  // 기본 정보
+  // === 상태들 ===
   const [brand, setBrand] = useState(initialBrand);
   const [title, setTitle] = useState('');
   const [modelName, setModelName] = useState('');
@@ -279,7 +272,7 @@ export default function ProductCreateModal({
 
   const [lawCertRequired, setLawCertRequired] = useState<boolean>(false);
 
-  // 7개 사업자 정보 
+  // 7개 사업자 정보
   const [bizInfo, setBizInfo] = useState({
     businessName: initialBizInfo?.businessName ?? '',
     businessNumber: initialBizInfo?.businessNumber ?? '',
@@ -300,17 +293,15 @@ export default function ProductCreateModal({
 
   const [editorFullscreen, setEditorFullscreen] = useState(false);
 
-  // 업로드 진행 상태: idle | uploading | done | error
+  // 업로드 진행 상태
   const [uploadingMap, setUploadingMap] = useState<Record<string, 'idle' | 'uploading' | 'done' | 'error'>>({});
-  // 파일 → s3Key 매핑 (개별 삭제)
+  // 파일 → s3Key 매핑
   const [fileS3Map, setFileS3Map] = useState<Record<string, string | null>>({});
 
-  // ESC로 닫기 
+  // ESC로 닫기
   useEffect(() => {
     if (!editorFullscreen) return;
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') setEditorFullscreen(false);
-    };
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') setEditorFullscreen(false); };
     window.addEventListener('keydown', onKey);
     const prev = document.body.style.overflow;
     document.body.style.overflow = 'hidden';
@@ -360,16 +351,58 @@ export default function ProductCreateModal({
     if (!open) return;
 
     if (mode === 'create') {
-      setBrand(initialBrand);
+      // 초기화
+      setBrand(initialBrand ?? '모리모리');
+      setTitle('');
+      setModelName('');
+      setCategory1('');
+      setCategory2('');
+      setSize('');
+      setMaterial('');
+      setOrigin('');
+      setPrice(0);
+      setDiscountRate(0);
+      setStock(0);
+      setMinQty(1);
+      setMaxQty(0);
+      setBundleShipping(true);
+      setShippingType('FREE');
+      setShippingFee(0);
+      setFreeThreshold(0);
+      setJejuExtraFee(0);
+      setIsPlanned(false);
+      setSaleStart('');
+      setSaleEnd('');
+      setTags([]);
+      setIsRestock(false);
+      setUseOptions(false);
+      setOptions([]);
+      setAddons([]);
+      setLawCertRequired(false);
+      setBizInfo({
+        businessName: initialBizInfo?.businessName ?? '',
+        businessNumber: initialBizInfo?.businessNumber ?? '',
+        ownerName: initialBizInfo?.ownerName ?? '',
+        asManager: initialBizInfo?.asManager ?? '',
+        email: initialBizInfo?.email ?? '',
+        businessAddress: initialBizInfo?.businessAddress ?? '',
+        telecomSalesNumber: initialBizInfo?.telecomSalesNumber ?? '',
+      });
+      setEditorValue('');
+
+      setFiles([]);
+      setPreviews([]);
+      setUploadedImages([]);
+      setUploadingMap({});
+      setFileS3Map({});
+      setFileTypes([]);
       return;
     }
 
-    if (mode === 'edit') {
-      if (initialPayload) {
-        hydrateFromPayload(initialPayload);
-      }
+    if (mode === 'edit' && initialPayload) {
+      hydrateFromPayload(initialPayload);
     }
-  }, [open, mode, initialPayload, initialBrand]);
+  }, [open, mode, initialPayload, initialBrand, initialBizInfo]);
 
   const subOptions = useMemo(() => {
     const root = catTree.find((c) => String(c.id) === category1);
@@ -439,7 +472,7 @@ export default function ProductCreateModal({
     setAddons(payload.addons ?? []);
 
     setBizInfo((prev) => ({
-      businessName: payload.bizInfo?.companyName ?? prev.businessName ?? '',
+      businessName: payload.bizInfo?.businessName ?? prev.businessName ?? '',
       businessNumber: payload.bizInfo?.bizNumber ?? prev.businessNumber ?? '',
       ownerName: payload.bizInfo?.ceoName ?? prev.ownerName ?? '',
       asManager: prev.asManager ?? '',
@@ -451,11 +484,11 @@ export default function ProductCreateModal({
     setEditorValue(payload.description ?? '');
   }
 
-  // 파일 선택 → 자동 업로드
+  // === 파일 선택 → 자동 업로드 ===
   const handleSelectFiles = async (incoming: File[]) => {
     if (incoming.length === 0) return;
 
-    // 중복 제거 (이미 선택된 파일은 제외)
+    // 중복 제거
     const dedup = incoming.filter(
       (nf) => !files.some((ef) => fileKey(ef) === fileKey(nf))
     );
@@ -465,10 +498,17 @@ export default function ProductCreateModal({
     const nextFiles = [...files, ...dedup];
     setFiles(nextFiles);
 
-    // 타입 기본값: 첫 파일만 MAIN, 나머지는 ADDITIONAL
-    const defaultsForNew = dedup.map((_, i) =>
-      files.length === 0 && i === 0 ? 'MAIN' : 'ADDITIONAL'
+    // 타입 기본값: 첫 파일만 MAIN, 나머지는 THUMBNAIL
+    const defaultsForNew: AllowedType[] = dedup.map((_, i) =>
+      files.length === 0 && i === 0 ? 'MAIN' : 'THUMBNAIL'
     );
+
+    // 기존에 이미 MAIN이 있었다면 새로 들어온 것들은 모두 THUMBNAIL
+    const alreadyMainIdx = findMainIndex(fileTypes);
+    if (alreadyMainIdx >= 0) {
+      for (let i = 0; i < defaultsForNew.length; i++) defaultsForNew[i] = 'THUMBNAIL';
+    }
+
     setFileTypes((prev) => [...prev, ...defaultsForNew]);
 
     // 업로드 상태: 신규 파일만 uploading 마킹
@@ -478,46 +518,79 @@ export default function ProductCreateModal({
       return next;
     });
 
-    // 신규로 선택한 파일만 업로드 호출 (이미 업로드한 파일은 재업로드 X)
+    // 신규로 선택한 파일만 업로드
     try {
-      const uploaded = await uploadProductImages(dedup, defaultsForNew);
-      // 업로드 성공 → 전역 업로드 결과 누적
-      setUploadedImages((prev) => [...prev, ...uploaded]);
+  const uploaded = await uploadProductImages(dedup, defaultsForNew);
 
-      // 파일 → s3Key 매핑 저장
-      setFileS3Map((prev) => {
-        const next = { ...prev };
-        dedup.forEach((f, i) => {
-          const key = fileKey(f);
-          const s3Key = uploaded[i]?.s3Key ?? null;
-          next[key] = s3Key;
-        });
-        return next;
-      });
+  // ✅ 기존 타입과 겹치는 이미지는 교체 (누적 X)
+  setUploadedImages((prev) => {
+    const next = [...prev];
 
-      // 상태 완료 처리
-      setUploadingMap((prev) => {
-        const next = { ...prev };
-        dedup.forEach((f) => (next[fileKey(f)] = 'done'));
-        return next;
-      });
-    } catch (e: unknown) {
-      const msg = e instanceof Error ? e.message : '이미지 업로드 실패';
-      alert(msg);
-
-      // 업로드 실패 
-      setUploadingMap((prev) => {
-        const next = { ...prev };
-        dedup.forEach((f) => (next[fileKey(f)] = 'error'));
-        return next;
-      });
+    for (const newImg of uploaded) {
+      // 같은 타입이 이미 있으면 교체
+      const existingIndex = next.findIndex((img) => img.type === newImg.type);
+      if (existingIndex !== -1) {
+        next[existingIndex] = newImg;
+      } else {
+        next.push(newImg);
+      }
     }
+
+    return next;
+  });
+
+  // 파일 → s3Key 매핑 저장
+  setFileS3Map((prev) => {
+    const next = { ...prev };
+    dedup.forEach((f, i) => {
+      const key = fileKey(f);
+      const s3Key = uploaded[i]?.s3Key ?? null;
+      next[key] = s3Key;
+    });
+    return next;
+  });
+
+  // 상태 완료 처리
+  setUploadingMap((prev) => {
+    const next = { ...prev };
+    dedup.forEach((f) => (next[fileKey(f)] = 'done'));
+    return next;
+  });
+} catch (e: unknown) {
+  const msg = e instanceof Error ? e.message : '이미지 업로드 실패';
+  alert(msg);
+
+  setUploadingMap((prev) => {
+    const next = { ...prev };
+    dedup.forEach((f) => (next[fileKey(f)] = 'error'));
+    return next;
+  });
+}
   };
 
+  // 타입 변경 (항상 MAIN 1개 유지)
   const handleChangeFileType = (index: number, newType: UploadType) => {
+    const allowed = asAllowed(newType);
     setFileTypes((prev) => {
       const updated = [...prev];
-      updated[index] = newType;
+
+      if (allowed === 'MAIN') {
+        const oldMain = findMainIndex(updated);
+        if (oldMain >= 0 && oldMain !== index) updated[oldMain] = 'THUMBNAIL';
+        updated[index] = 'MAIN';
+        return updated;
+      }
+
+      // allowed === 'THUMBNAIL'
+      const isTurningOffLastMain = updated[index] === 'MAIN';
+      updated[index] = 'THUMBNAIL';
+
+      if (isTurningOffLastMain) {
+        // 다른 파일 중 첫 번째를 MAIN으로 승격 (없으면 그대로 두고, 저장 시 검증)
+        const otherIdx = updated.findIndex((_, i) => i !== index);
+        if (otherIdx >= 0) updated[otherIdx] = 'MAIN';
+      }
+
       return updated;
     });
   };
@@ -532,11 +605,11 @@ export default function ProductCreateModal({
 
     let urls: string[] = [];
     try {
-      urls = await uploadDescriptionImages(files); // S3에 모두 업로드 → URL 배열
+      urls = await uploadDescriptionImages(files);
     } catch (e: unknown) {
-    const msg = e instanceof Error ? e.message : '설명 이미지 업로드에 실패했습니다.';
-    alert(msg);
-    throw e;
+      const msg = e instanceof Error ? e.message : '설명 이미지 업로드에 실패했습니다.';
+      alert(msg);
+      throw e;
     }
 
     if (!urls.length) throw new Error('설명 이미지 URL을 받지 못했습니다.');
@@ -579,7 +652,7 @@ export default function ProductCreateModal({
     description: editorValue,
   });
 
-  // 필수입력값 alert 검증
+  // 저장 전 검증(백엔드 규칙 + 이미지 타입 규칙)
   function validateAgainstBackendRules(
     p: ProductCreatePayload,
     ctx: {
@@ -615,7 +688,7 @@ export default function ProductCreateModal({
     if (p.minQty != null && p.maxQty != null && p.maxQty < p.minQty)
       errs.push('최대 구매 수량은 최소 구매 수량 이상이어야 합니다.');
 
-    // 배송 (타입별 맞춤 검증)
+    // 배송
     if (!p.shipping?.type) {
       errs.push('배송비 유형은 필수입니다.');
     } else {
@@ -625,7 +698,6 @@ export default function ProductCreateModal({
             errs.push('무료배송 시 제주 추가배송비를 입력해주세요 (0 이상).');
           }
           break;
-
         case 'PAID':
           if (p.shipping.fee == null || p.shipping.fee <= 0) {
             errs.push('유료배송 시 배송비를 입력해주세요 (1원 이상).');
@@ -634,7 +706,6 @@ export default function ProductCreateModal({
             errs.push('유료배송 시 제주 추가배송비를 입력해주세요 (0 이상).');
           }
           break;
-
         case 'CONDITIONAL':
           if (p.shipping.fee == null || p.shipping.fee < 0) {
             errs.push('조건부 무료배송 시 기본 배송비를 입력해주세요 (0 이상).');
@@ -646,13 +717,12 @@ export default function ProductCreateModal({
             errs.push('조건부 무료배송 시 제주 추가배송비를 입력해주세요 (0 이상).');
           }
           break;
-
         default:
           errs.push('배송비 유형은 필수입니다.');
       }
     }
 
-    // 판매 설정(기획/재입고)
+    // 판매 설정
     if (typeof ctx.isPlanned !== 'boolean') errs.push('기획상품 여부는 필수입니다.');
     if (typeof ctx.isRestock !== 'boolean') errs.push('재입고 여부는 필수입니다.');
     if (p.plannedSale) {
@@ -664,8 +734,11 @@ export default function ProductCreateModal({
 
     // 태그/이미지
     if (!p.tags || p.tags.length < 1) errs.push('스타일 태그는 최소 1개 이상 선택해주세요.');
-    if (!ctx.uploadedImages || ctx.uploadedImages.length < 1)
-      errs.push('이미지는 최소 1개 이상 업로드해야 합니다.');
+    const upImgs = ctx.uploadedImages ?? [];
+    if (upImgs.length < 1) errs.push('이미지는 최소 1개 이상 업로드해야 합니다.');
+    const types = upImgs.map((u) => asAllowed(u.type));
+    const mainCount = types.filter((t) => t === 'MAIN').length;
+    if (mainCount !== 1) errs.push('대표 이미지(MAIN)는 정확히 1개여야 합니다.');
 
     // KC 인증 여부
     if (p.certification == null) errs.push('KC 인증 여부는 필수입니다.');
@@ -701,20 +774,19 @@ export default function ProductCreateModal({
       return;
     }
 
-    // s3Key 탐색: 1) fileS3Map 2) uploadedImages에서 originalFileName 매칭 폴백
+    // s3Key 탐색
     const s3Key =
       fileS3Map[key] ??
       uploadedImages.find((u) => u.originalFileName === target.name)?.s3Key ??
       null;
 
-    // 서버(S3) 삭제
     if (status === 'done' && s3Key) {
       try {
         await deleteProductImage(s3Key);
       } catch (e: unknown) {
-      const msg = e instanceof Error ? e.message : 'S3 파일 삭제에 실패했습니다.';
-      alert(msg);
-      return;
+        const msg = e instanceof Error ? e.message : 'S3 파일 삭제에 실패했습니다.';
+        alert(msg);
+        return;
       }
     }
 
@@ -722,6 +794,12 @@ export default function ProductCreateModal({
     const nextFiles = files.filter((_, i) => i !== idx);
     const nextTypes = fileTypes.filter((_, i) => i !== idx);
     const nextPreviews = previews.filter((_, i) => i !== idx);
+
+    // 대표 이미지가 삭제되어 버렸다면, 남아있는 첫 항목을 MAIN으로 지정
+    if (nextTypes.length > 0 && findMainIndex(nextTypes) < 0) {
+      nextTypes[0] = 'MAIN';
+    }
+
     setFiles(nextFiles);
     setFileTypes(nextTypes);
     setPreviews(nextPreviews);
@@ -747,9 +825,12 @@ export default function ProductCreateModal({
   const handleCreate = async () => {
     const payload = buildPayload();
 
-    // 서버 DTO 규칙
+    // 타입 동기화
+    const syncedImages = syncUploadedTypes(files, fileTypes, uploadedImages);
+
+    // 규칙 검증
     const errs = validateAgainstBackendRules(payload, {
-      uploadedImages,
+      uploadedImages: syncedImages,
       shippingType,
       usingOptions: useOptions,
       bundleShippingAvailable: bundleShipping,
@@ -761,8 +842,6 @@ export default function ProductCreateModal({
       return;
     }
 
-    // 타입 동기화
-    const syncedImages = syncUploadedTypes(files, fileTypes, uploadedImages);
     const dto = toProductCreateDto(payload, { uploadedImages: syncedImages, tagDict, isRestock });
 
     try {
@@ -772,8 +851,8 @@ export default function ProductCreateModal({
       alert(`상품 등록 성공: ${newUuid}`);
       onClose();
     } catch (e: unknown) {
-    const msg = e instanceof Error ? e.message : '등록 중 오류가 발생했습니다.';
-    alert(msg);
+      const msg = e instanceof Error ? e.message : '등록 중 오류가 발생했습니다.';
+      alert(msg);
     } finally {
       setSubmitting(false);
     }
@@ -782,10 +861,17 @@ export default function ProductCreateModal({
   // 수정
   const handleUpdate = async () => {
     const payload = buildPayload();
+    if (!productUuid) {
+      alert('이 상품의 productUuid를 찾지 못해 수정할 수 없습니다.');
+      return;
+    }
 
-    // 서버 DTO 규칙
+    // 타입 동기화
+    const syncedImages = syncUploadedTypes(files, fileTypes, uploadedImages);
+
+    // 규칙 검증
     const errs = validateAgainstBackendRules(payload, {
-      uploadedImages,
+      uploadedImages: syncedImages,
       shippingType,
       usingOptions: useOptions,
       bundleShippingAvailable: bundleShipping,
@@ -797,13 +883,6 @@ export default function ProductCreateModal({
       return;
     }
 
-    if (!productUuid) {
-      alert('이 상품의 productUuid를 찾지 못해 수정할 수 없습니다.');
-      return;
-    }
-
-    // 타입 동기화
-    const syncedImages = syncUploadedTypes(files, fileTypes, uploadedImages);
     const dto = toProductCreateDto(payload, { uploadedImages: syncedImages, tagDict, isRestock });
 
     try {
@@ -1488,7 +1567,6 @@ export default function ProductCreateModal({
                   onChange={(e) => {
                     const list = Array.from(e.target.files ?? []);
                     handleSelectFiles(list);
-                    // 같은 파일을 다시 선택할 수 있도록 초기화
                     e.currentTarget.value = '';
                   }}
                 />
@@ -1506,7 +1584,6 @@ export default function ProductCreateModal({
                   className="w-full rounded border border-[var(--color-gray-200)] px-3 py-2 pr-24 leading-none text-sm"
                   onClick={() => document.getElementById('fileInput')?.click()}
                 />
-                {/* 파일 선택 */}
                 <label
                   htmlFor="fileInput"
                   className="absolute right-2 top-1/2 -translate-y-1/2 cursor-pointer rounded border border-[var(--color-primary)] px-3 py-1 text-sm leading-none transition hover:bg-primary-20"
@@ -1564,18 +1641,16 @@ export default function ProductCreateModal({
                         {status === 'idle' && '대기'}
                       </span>
 
-                      {/* 타입 선택 */}
+                      {/* 타입 선택 — MAIN/THUMBNAIL만 */}
                       <select
-                        value={fileTypes[idx]}
-                        onChange={(e) => handleChangeFileType(idx, e.target.value as UploadType)}
+                        value={asAllowed(fileTypes[idx])}
+                        onChange={(e) => handleChangeFileType(idx, e.target.value as AllowedType)}
                         className="rounded border border-[var(--color-gray-200)] py-1.5 px-2"
                         disabled={status === 'uploading'}
                         title={status === 'uploading' ? '업로드 중에는 변경할 수 없어요' : undefined}
                       >
                         <option value="MAIN">대표 이미지</option>
-                        <option value="ADDITIONAL">추가 이미지</option>
                         <option value="THUMBNAIL">썸네일</option>
-                        <option value="DOCUMENT">문서</option>
                       </select>
 
                       {/* 개별 삭제 */}
@@ -1594,7 +1669,7 @@ export default function ProductCreateModal({
               </div>
 
               <p className="inline-block text-xs text-gray-500 bg-primary-20 p-1 my-2">
-                * 파일을 선택하면 자동으로 업로드됩니다.
+                * 파일을 선택하면 자동으로 업로드됩니다. (대표 이미지 1개, 나머지 썸네일)
               </p>
             </div>
           )}

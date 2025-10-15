@@ -2,6 +2,7 @@
 
 import type { ApiResponse, ProductCreateDto, ProductDetail, ProductListData, ProductListItem, ProductListParams, UploadedImageInfo, UploadType } from '@/types/product';
 
+
 // 서버 엔티티 기준 정규화
 function normalizePayload(p: ProductCreateDto): ProductCreateDto {
   const isFree = p.deliveryType === 'FREE';
@@ -506,63 +507,27 @@ export async function fetchProductList(kind: ProductKind, params?: ProductListPa
 // 상품 상세
 const API_BASE = (process.env.NEXT_PUBLIC_API_BASE_URL ?? '').replace(/\/+$/, '');
 
-export async function fetchProductDetail(
-  productUuid: string,
-  opts?: { accessToken?: string },
-): Promise<ProductDetail> {
-  const url = `${API_BASE}/api/products/${productUuid}`;
-
-  const headers: Record<string, string> = {
-    accept: 'application/json',
-    ...(opts?.accessToken ? { Authorization: `Bearer ${opts.accessToken}` } : {}),
-  };
-
-  const res = await fetch(url, {
+export async function fetchProductDetail(productUuid: string): Promise<ProductDetail> {
+  const res = await fetch(`${process.env.NEXT_PUBLIC_API_BASE_URL}/api/products/${productUuid}`, {
     method: 'GET',
-    headers,
+    headers: { accept: 'application/json' },
     credentials: 'include',
-    cache: 'no-store',
   });
+  const json = await res.json();
+  if (!res.ok) throw new Error(json?.msg ?? '상품 상세 조회 실패');
 
-  const text = await res.text().catch(() => '');
-  let json: ApiResponse<ProductDetail | null> | null = null;
-  try {
-    json = text ? (JSON.parse(text) as ApiResponse<ProductDetail | null>) : null;
-  } catch {
-  }
+  const data = json?.data;
+  const images = (data?.images ?? []).map((d: any) => ({
+    url: d.url,
+    type: d.type,
+    s3Key: d.s3Key,
+    originalFileName: d.originalFileName,
+  }));
 
-  if (!res.ok) {
-    const msg = (json?.msg || text || `요청 실패 (HTTP ${res.status})`).trim();
-    throw new Error(msg);
-  }
-  if (!json || json.resultCode !== '200' || !json.data) {
-  throw new Error(json?.msg || '상품 정보를 불러올 수 없습니다.');
-}
-
-// 1) unknown → object로 안전하게 좁히기 (임시)
-const rawUnknown: unknown = json.data;
-const rawObj: Record<string, unknown> =
-  typeof rawUnknown === 'object' && rawUnknown !== null ? (rawUnknown as Record<string, unknown>) : {};
-
-// 2) productId 추출 (임시)
-const pid =
-  typeof rawObj.productId === 'number'
-    ? rawObj.productId
-    : typeof rawObj.id === 'number'
-      ? rawObj.id
-      : undefined;
-
-if (pid == null) {
-  console.warn('[fetchProductDetail] productId 누락: 리뷰 API 사용 불가');
-}
-
-// 3) 객체로 좁힌 것만 펼치기 (임시)
-const detail: ProductDetail = {
-  ...(rawObj as Partial<ProductDetail>),
-  productId: typeof pid === 'number' ? pid : 0,
-} as ProductDetail;
-
-return detail;
+  return {
+    ...data,
+    images,
+  } as ProductDetail;
 }
 
 
