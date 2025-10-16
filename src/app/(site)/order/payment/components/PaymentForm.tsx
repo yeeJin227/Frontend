@@ -13,6 +13,7 @@ import {
   getMoricashBalance,
   payMoricash,
 } from '@/app/(site)/order/api/moricashApi';
+import { useToast } from '@/components/ToastProvider';
 
 interface PaymentFormProps {
   cartItems: CartItemResponse[];
@@ -46,6 +47,7 @@ const PaymentForm = ({ cartItems }: PaymentFormProps) => {
   const [currentTerms, setCurrentTerms] = useState<
     'electronic' | 'personal' | 'provision' | null
   >(null);
+  const toast = useToast();
 
   // 모리캐시 잔액 조회
   const { data: moricashData } = useQuery({
@@ -58,9 +60,6 @@ const PaymentForm = ({ cartItems }: PaymentFormProps) => {
     mutationFn: createOrder,
     onSuccess: async (response) => {
       try {
-        alert(
-          `orderId : ${response.orderId}\n totalPrice : ${totalPrice}\n usedMoriCash : ${moricashData?.availableBalance}`,
-        );
         await payMoricash({
           orderId: response.orderId,
           totalPrice: totalPrice + 3000,
@@ -70,7 +69,7 @@ const PaymentForm = ({ cartItems }: PaymentFormProps) => {
         // 결제 성공 후 페이지 이동
         router.push(`/order/complete?orderId=${response.orderId}`);
       } catch (error) {
-        alert(
+        toast.error(
           error instanceof Error
             ? error.message
             : '결제 처리 중 문제가 발생했습니다. 다시 시도해주세요.',
@@ -78,7 +77,7 @@ const PaymentForm = ({ cartItems }: PaymentFormProps) => {
       }
     },
     onError: (error) => {
-      alert(
+      toast.error(
         error instanceof Error
           ? error.message
           : '주문 생성에 실패했습니다. 다시 시도해주세요.',
