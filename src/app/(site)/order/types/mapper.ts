@@ -9,8 +9,11 @@ export const mapCartItemResponseToCartItem = (
   return {
     id: item.cartId,
     name: item.productName,
-    option: item.optionInfo,
-    price: item.price,
+    option: item.optionInfo || '옵션 없음',
+    price:
+      item.cartType === 'FUNDING'
+        ? item.fundingPrice || item.price
+        : item.price,
     quantity: item.quantity,
     image: item.productImageUrl,
     isChecked: item.isSelected,

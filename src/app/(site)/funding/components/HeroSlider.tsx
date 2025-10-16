@@ -11,13 +11,18 @@ const heroImages = [
     bg: 'bg-[#D5D2D8]',
     imageURL: '/heroSectionImages/hs1.png',
   },
-  // {
-  //   id: 2,
-  //   title: '펀딩 설명 히어로 섹션 2',
-  //   bg: 'bg-blue-300',
-  //   imageURL: '',
-  // },
-  // { id: 3, title: '펀딩 설명 히어로 섹션 3', bg: 'bg-green-300', imageURL: '' },
+  {
+    id: 2,
+    title: '',
+    bg: 'bg-[#FEF5EC]',
+    imageURL: '/heroSectionImages/hs2.png',
+  },
+  {
+    id: 3,
+    title: '',
+    bg: 'bg-[#F1E8E0]',
+    imageURL: '/heroSectionImages/hs3.png',
+  },
 ];
 
 export function HeroSlider() {

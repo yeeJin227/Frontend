@@ -1,6 +1,6 @@
 import {
   CreateOrderRequest,
-  CreateOrderApiResponse,
+  CreateOrderResponse,
   OrderDetailApiResponse,
 } from '../types/order.types';
 
@@ -11,7 +11,7 @@ const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || '';
  */
 export const createOrder = async (
   orderData: CreateOrderRequest,
-): Promise<CreateOrderApiResponse> => {
+): Promise<CreateOrderResponse> => {
   const response = await fetch(`${API_BASE_URL}/api/orders`, {
     method: 'POST',
     headers: {
@@ -28,23 +28,6 @@ export const createOrder = async (
   return response.json();
 };
 
-/**
- * 주문 상세 조회
- */
-export const getOrder = async (
-  orderId: number,
-): Promise<OrderDetailApiResponse> => {
-  const response = await fetch(`${API_BASE_URL}/api/orders/${orderId}`, {
-    method: 'GET',
-    headers: {
-      'Content-Type': 'application/json',
-    },
-    credentials: 'include',
-  });
+/*
 
-  if (!response.ok) {
-    throw new Error('주문 조회에 실패했습니다.');
-  }
-
-  return response.json();
-};
+*/

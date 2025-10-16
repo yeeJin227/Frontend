@@ -1,7 +1,7 @@
 'use client';
 
 import React from 'react';
-import { useToggleCartItem } from '../hooks/useCart';
+import { useToggleAllCartSelection } from '../hooks/useCart';
 import { CartItem as CartItemType } from '../types/cart.types';
 import CartItem from './CartItem';
 
@@ -12,15 +12,13 @@ interface CartSectionProps {
 }
 
 const CartSection = ({ title, items, isRegular }: CartSectionProps) => {
-  const toggleMutation = useToggleCartItem();
+  const toggleAllMutation = useToggleAllCartSelection();
+
+  const allChecked = items.length > 0 && items.every((item) => item.isChecked);
 
   const toggleAllCheck = () => {
-    const allChecked = items.every((item) => item.isChecked);
-
-    // 모든 아이템의 선택 상태를 토글
-    items.forEach((item) => {
-      toggleMutation.mutate(item.id);
-    });
+    // 모두 선택되어 있으면 전체 해제, 아니면 전체 선택
+    toggleAllMutation.mutate(!allChecked);
   };
 
   return (

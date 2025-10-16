@@ -2,6 +2,8 @@
 import { useState, useEffect } from 'react';
 import Image from 'next/image';
 import Button from '@/components/Button';
+import { useLogout } from '@/hooks/useLogout';
+import { useRouter } from 'next/navigation';
 
 // API 응답 데이터의 타입을 정의하면 더 안전하게 코드를 작성할 수 있습니다.
 interface UserData {
@@ -36,9 +38,12 @@ export default function AccountSetting() {
 
   // 프로필 이미지 URL을 별도 상태로 관리합니다.
   const [profileImageUrl, setProfileImageUrl] = useState<string | null>(null);
+  const [imageFile, setImageFile] = useState<File | null>(null);
   const API_BASE_URL = (
     process.env.NEXT_PUBLIC_API_BASE_URL ?? 'http://localhost:8080'
   ).replace(/\/+$/, '');
+  const { logout } = useLogout();
+  const router = useRouter();
 
   // 컴포넌트가 마운트될 때 API를 호출하기 위해 useEffect 사용
   useEffect(() => {
@@ -87,6 +92,45 @@ export default function AccountSetting() {
     }));
   };
 
+  const uploadImage = async (file: File) => {
+    try {
+      const formData = new FormData();
+      formData.append('files', file); // 파일 자체를 추가
+
+      console.log('이미지 업로드 시작:', file.name);
+
+      // types는 query parameter로 전달
+      const response = await fetch(
+        `${API_BASE_URL}/api/fundings/images?types=MAIN`,
+        {
+          method: 'POST',
+          credentials: 'include',
+          body: formData,
+          // headers에 Content-Type을 명시하지 않음 (브라우저가 자동으로 설정)
+        },
+      );
+
+      if (!response.ok) {
+        const errorText = await response.text().catch(() => '');
+        throw new Error(
+          `이미지 업로드 실패: ${response.status} ${errorText || response.statusText}`,
+        );
+      }
+
+      const result = await response.json();
+
+      if (result.resultCode !== '200') {
+        throw new Error(result.msg || '이미지 업로드 실패');
+      }
+    } catch (error) {
+      console.error('이미지 업로드 에러:', error);
+      if (error instanceof Error) {
+        throw new Error(`이미지 업로드 중 오류: ${error.message}`);
+      }
+      throw new Error('이미지 업로드 중 알 수 없는 오류가 발생했습니다.');
+    }
+  };
+
   const handleSubmit = async () => {
     // 비밀번호 필드가 하나라도 채워져 있다면, 두 필드가 일치하는지 확인합니다.
     if (formData.password || formData.passwordConfirm) {
@@ -97,6 +141,8 @@ export default function AccountSetting() {
     }
 
     try {
+      if (imageFile) await uploadImage(imageFile);
+
       const requestBody =
         formData.password == '' && formData.passwordConfirm == ''
           ? {
@@ -145,8 +191,28 @@ export default function AccountSetting() {
     }
   };
 
-  const handleCancel = () => {
-    console.log('취소');
+  const handleWithDraw = async () => {
+    if (confirm('회원탈퇴를 진행하시겠습니까?')) {
+      if (!confirm('정말로 회원탈퇴를 진행하시겠습니까?')) return;
+    } else return;
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/users/me`, {
+        method: 'DELETE',
+        credentials: 'include',
+      });
+
+      if (!response.ok)
+        throw new Error(
+          `회원 탈퇴 실패 : ${response.status} ${response.statusText}`,
+        );
+      if (response.status === 200) {
+        console.log('회원탈퇴 완료');
+        logout();
+        router.push('/');
+      }
+    } catch (error) {
+      console.error(error);
+    }
   };
 
   return (
@@ -165,7 +231,27 @@ export default function AccountSetting() {
           />
         </div>
         <div className="flex ml-auto gap-3">
-          <Button>이미지 업로드</Button>
+          <div className="px-4 py-2 text-base gap-2 bg-primary text-white hover:bg-primary/70 inline-flex items-center justify-center rounded-[10px] font-medium transition-colors focus:outline-none disabled:opacity-60 disabled:cursor-not-allowed">
+            <label>
+              이미지 업로드
+              <input
+                type="file"
+                accept="image/png, image/jpeg"
+                className="hidden"
+                onChange={(e) => {
+                  const file = e.target.files?.[0] ?? null;
+                  if (!file) return;
+
+                  setImageFile(file);
+
+                  const previewUrl = URL.createObjectURL(file);
+                  setProfileImageUrl(previewUrl);
+
+                  e.currentTarget.value = '';
+                }}
+              />
+            </label>
+          </div>
           <Button variant="outline" onClick={() => setProfileImageUrl(null)}>
             이미지 삭제
           </Button>
@@ -257,7 +343,7 @@ export default function AccountSetting() {
 
         {/* 버튼 */}
         <div className="flex justify-end gap-3 pt-6">
-          <Button onClick={handleCancel} variant="danger">
+          <Button onClick={handleWithDraw} variant="danger">
             회원 탈퇴
           </Button>
           <Button onClick={handleSubmit}>정보 수정하기</Button>

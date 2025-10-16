@@ -5,6 +5,11 @@ import FullHeart from '@/assets/icon/full_heart.svg';
 import EmptyHeart from '@/assets/icon/empty_heart.svg';
 import { useAuthStore } from '@/stores/authStore';
 import { useToast } from '@/components/ToastProvider';
+import {
+  toggleAllCartSelection,
+  validateCart,
+} from '@/app/(site)/order/api/cartApi';
+import { useRouter } from 'next/navigation';
 
 interface ProductInfoProps {
   id: number;
@@ -51,6 +56,7 @@ export default function ProductInfo({
   const isOutOfStock = stock === 0 && stock !== null;
   const role = useAuthStore((store) => store.role);
   const toast = useToast();
+  const router = useRouter();
 
   // 🔥 페이지 진입 시 찜 상태 확인
   useEffect(() => {
@@ -95,12 +101,19 @@ export default function ProductInfo({
 
     checkWishlistStatus();
   }, [id, role, API_BASE_URL]); // role이 변경되면 다시 확인
-
-  const handleAddCart = async () => {
-    if (!role) {
-      toast.error('로그인이 필요한 서비스입니다.');
-      return;
+      
+  const handleBuy = async () => {
+    try {
+      await toggleAllCartSelection(false);
+      await addFundingToCart();
+      await validateCart(false);
+      router.push('/order/payment');
+    } catch (error) {
+      toast.error(`예악구매에 실패 : ${error}`);
     }
+  };
+
+  const addFundingToCart = async () => {
     try {
       const response = await fetch(`${API_BASE_URL}/api/cart`, {
         method: 'POST',
@@ -120,12 +133,23 @@ export default function ProductInfo({
       if (!response.ok) {
         throw new Error(`Error : ${response.status} ${response.statusText}`);
       }
-      if (response.status === 200) {
-        toast.success('장바구니에 추가되었습니다.');
-      }
+      return response.json;
     } catch (error) {
       console.error(error);
-      toast.error('장바구니 추가에 실패했습니다.');
+    }
+  };
+
+  const handleAddCart = async () => {
+    if (!role) {
+      toast.error('로그인이 필요한 서비스입니다.');
+      return;
+    }
+    try {
+      await addFundingToCart();
+      toast.success('장바구니에 추가되었습니다');
+    } catch (error) {
+      console.error(error);
+      toast.error('장바구니에 추가하지 못했습니다.');
     }
   };
 
@@ -267,6 +291,7 @@ export default function ProductInfo({
           장바구니
         </button>
         <button
+          onClick={handleBuy}
           disabled={isFundingEnded || isOutOfStock}
           className={`max-w-[162px] w-full py-3 px-6 rounded-[6px] text-[25px] font-bold transition-colors ${
             isFundingEnded || isOutOfStock

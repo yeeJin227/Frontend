@@ -7,6 +7,7 @@ import {
   useDeleteCartItem,
 } from '../hooks/useCart';
 import { CartItem as CartItemType } from '../types/cart.types';
+import Image from 'next/image';
 
 interface CartItemProps {
   item: CartItemType;
@@ -49,11 +50,13 @@ const CartItem = ({ item }: CartItemProps) => {
         {/* 상품 이미지 */}
         <div className="w-[150px] h-[150px] bg-gray-200 rounded-lg mr-8 overflow-hidden">
           {item.image ? (
-            <img
+            <Image
               src={item.image}
               alt={item.name}
+              width={150}
+              height={150}
               className="w-full h-full object-cover"
-            />
+            ></Image>
           ) : (
             <div className="w-full h-full bg-gray-200 flex items-center justify-center text-gray-500">
               상품 이미지
@@ -66,7 +69,9 @@ const CartItem = ({ item }: CartItemProps) => {
           <h3 className="text-gray-800 font-semibold text-base leading-tight mb-2">
             {item.name}
           </h3>
-          <p className="text-gray-500 text-sm">옵션 : {item.option}</p>
+          <p className="text-gray-500 text-sm">
+            옵션 : {item.option ?? '없음'}
+          </p>
         </div>
 
         {/* 가격 */}
