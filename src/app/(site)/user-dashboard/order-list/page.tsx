@@ -374,7 +374,7 @@ export default function OrderList() {
                   </td>
                   <td className="px-4 py-4 text-sm font-medium text-gray-900">
                     {/* 숫자로 오는 가격을 원화 형식으로 변환 */}
-                    {order.price.toLocaleString('ko-KR')}원
+                    {order.price?.toLocaleString('ko-KR')}원
                   </td>
                   <td className="px-4 py-4 text-sm text-gray-700">
                     {order.sellingStatus}
