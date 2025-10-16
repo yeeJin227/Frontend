@@ -218,8 +218,8 @@ export default function ProductOptions({ productUuid }: Props) {
           >
             <Heart
               className={isWish ? "fill-red-500" : "fill-none"}
-              width={20}
-              height={20}
+              width={16}
+              height={16}
             />
           </button>
         </div>
