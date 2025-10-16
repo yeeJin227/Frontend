@@ -150,11 +150,11 @@ export default function FundingListPage() {
         <div className="flex items-center gap-6">
           <h1 className="text-3xl font-bold">참여한 펀딩 목록</h1>
         </div>
-        <div className="flex gap-3">
+        {/* <div className="flex gap-3">
           <button className="px-6 py-2 bg-primary text-white rounded-md font-medium">
             후원 취소
           </button>
-        </div>
+        </div> */}
       </div>
 
       {/* 테이블 */}

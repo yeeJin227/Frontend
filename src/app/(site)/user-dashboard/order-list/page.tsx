@@ -184,14 +184,14 @@ export default function OrderList() {
             <br /> 교환 / 환불 신청은 배송완료 후 7일까지만 가능합니다.
           </p>
         </div>
-        <div className="flex gap-3">
+        {/* <div className="flex gap-3">
           <button className="px-6 py-2 border border-gray-300 rounded-md text-gray-700 font-medium hover:bg-gray-50">
             취소 신청
           </button>
           <button className="px-6 py-2 bg-primary text-white rounded-md font-medium">
             교환/환불 신청
           </button>
-        </div>
+        </div> */}
       </div>
 
       {/* 테이블 */}

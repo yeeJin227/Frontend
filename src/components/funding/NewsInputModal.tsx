@@ -192,7 +192,7 @@ const NewsCreateModal: React.FC<NewsCreateModalProps> = ({
             />
           </div>
 
-          {/* File Upload */}
+          {/* File Upload 
           <div>
             <div className="flex items-center gap-2 mb-2">
               <label className="text-sm font-medium text-gray-700">
@@ -219,7 +219,6 @@ const NewsCreateModal: React.FC<NewsCreateModalProps> = ({
               </label>
             </div>
 
-            {/* 이미지 미리보기 */}
             {previewUrl && (
               <div className="mt-4 relative inline-block">
                 <div className="relative w-48 h-48 rounded-lg overflow-hidden border border-gray-300">
@@ -241,7 +240,7 @@ const NewsCreateModal: React.FC<NewsCreateModalProps> = ({
                 <p className="mt-2 text-xs text-gray-600">{imageFile?.name}</p>
               </div>
             )}
-          </div>
+          </div>*/}
         </div>
 
         {/* Footer */}
