@@ -414,4 +414,5 @@ export type ArtistPublicProfile = {
   totalSales: number;
   productCount: number;
   createdAt: string;
+  isFollowing?: boolean;
 };

@@ -101,7 +101,7 @@ export default function ProductInfo({
 
     checkWishlistStatus();
   }, [id, role, API_BASE_URL]); // role이 변경되면 다시 확인
-
+      
   const handleBuy = async () => {
     try {
       await toggleAllCartSelection(false);

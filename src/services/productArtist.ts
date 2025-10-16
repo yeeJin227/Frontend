@@ -1,6 +1,40 @@
 import { ArtistPublicProfile } from '@/types/artistDashboard';
 import type { ProductArtistInfo } from '@/types/productArtist';
 
+export type ArtistListEntry = {
+  artistId: number;
+  artistName: string;
+};
+
+export type ArtistProfileProduct = {
+  productUuid: string;
+  name: string;
+  price: number;
+  discountPrice: number;
+  discountRate: number;
+  thumbnailUrl: string;
+  rating: number;
+  reviewCount: number;
+  stock: number;
+  sellingStatus: string;
+};
+
+export type FollowArtistResponse = {
+  followId: number;
+  artistId: number;
+  artistName: string;
+  profileImageUrl?: string;
+  followerCount: number;
+  followedAt: string;
+  isFollowing: boolean;
+};
+
+export type UnfollowArtistResponse = {
+  artistId: number;
+  artistName?: string;
+  unfollowed: boolean;
+};
+
 
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL;
 
@@ -18,14 +52,197 @@ export async function fetchProductArtistInfo(productUuid: string): Promise<Produ
 }
 
 // 작가 공개 프로필 상세정보
+type FetchError = Error & { status?: number };
+
+export async function fetchArtistList(): Promise<ArtistListEntry[]> {
+  const res = await fetch(`${API_BASE}/api/artist/list`, {
+    method: 'GET',
+    headers: { accept: 'application/json' },
+    credentials: 'include',
+    cache: 'no-store',
+  });
+
+  const json = (await res
+    .json()
+    .catch(() => ({}))) as { msg?: string; data?: ArtistListEntry[] };
+
+  if (!res.ok) {
+    const message = (json && json.msg) || '작가 목록을 불러오지 못했습니다.';
+    const error: FetchError = new Error(message);
+    error.status = res.status;
+    throw error;
+  }
+
+  const data = Array.isArray(json.data) ? json.data : [];
+  return data.map((item) => ({
+    artistId: Number(item.artistId),
+    artistName: String(item.artistName ?? ''),
+  }));
+}
+
 export async function fetchArtistPublicProfile(artistId: number): Promise<ArtistPublicProfile> {
   const res = await fetch(`${API_BASE}/api/artist/profile/${artistId}`, {
     method: 'GET',
     headers: { accept: 'application/json' },
     credentials: 'include',
+    cache: 'no-store',
   });
 
-  const json = await res.json();
-  if (!res.ok) throw new Error(json.msg || '작가 프로필 정보를 불러오지 못했습니다.');
-  return json.data;
+  const json = (await res
+    .json()
+    .catch(() => ({}))) as { msg?: string; data?: ArtistPublicProfile };
+  if (!res.ok) {
+    const message = (json && json.msg) || '작가 프로필 정보를 불러오지 못했습니다.';
+    const error: FetchError = new Error(message);
+    error.status = res.status;
+    throw error;
+  }
+
+  if (!json || !json.data) {
+    const error: FetchError = new Error('작가 프로필 정보가 없습니다.');
+    error.status = res.status;
+    throw error;
+  }
+
+  const payload = json.data;
+
+  return {
+    ...payload,
+    followerCount: Number((payload as { followerCount?: unknown }).followerCount ?? 0),
+    totalSales: Number((payload as { totalSales?: unknown }).totalSales ?? 0),
+    productCount: Number((payload as { productCount?: unknown }).productCount ?? 0),
+  } as ArtistPublicProfile;
+}
+
+type ArtistProductsParams = {
+  artistId: number;
+  page?: number;
+  size?: number;
+};
+
+export async function fetchArtistProfileProducts({
+  artistId,
+  page = 1,
+  size = 12,
+}: ArtistProductsParams): Promise<{ items: ArtistProfileProduct[]; page: number; size: number }> {
+  const url = new URL(`${API_BASE}/api/artist/profile/${artistId}/products`);
+  url.searchParams.set('page', String(page));
+  url.searchParams.set('size', String(size));
+
+  const res = await fetch(url.toString(), {
+    method: 'GET',
+    headers: { accept: 'application/json' },
+    credentials: 'include',
+    cache: 'no-store',
+  });
+
+  const json = (await res
+    .json()
+    .catch(() => ({}))) as { msg?: string; data?: ArtistProfileProduct[] };
+
+  if (!res.ok) {
+    const message = (json && json.msg) || '작가 상품 목록을 불러오지 못했습니다.';
+    const error: FetchError = new Error(message);
+    error.status = res.status;
+    throw error;
+  }
+
+  const items = Array.isArray(json.data) ? json.data : [];
+  return {
+    items: items.map((item) => ({
+      productUuid: String(item.productUuid ?? ''),
+      name: String(item.name ?? ''),
+      price: Number(item.price ?? 0),
+      discountPrice: Number(item.discountPrice ?? 0),
+      discountRate: Number(item.discountRate ?? 0),
+      thumbnailUrl: String(item.thumbnailUrl ?? ''),
+      rating: Number(item.rating ?? 0),
+      reviewCount: Number(item.reviewCount ?? 0),
+      stock: Number(item.stock ?? 0),
+      sellingStatus: String(item.sellingStatus ?? ''),
+    })),
+    page,
+    size,
+  };
+}
+
+export async function followArtist(
+  artistId: number,
+  options?: { accessToken?: string },
+): Promise<FollowArtistResponse> {
+  const headers: Record<string, string> = { accept: 'application/json' };
+  if (options?.accessToken) {
+    headers.Authorization = `Bearer ${options.accessToken}`;
+  }
+
+  const res = await fetch(`${API_BASE}/api/follows/artists/${artistId}`, {
+    method: 'POST',
+    headers,
+    credentials: 'include',
+  });
+
+  const json = (await res
+    .json()
+    .catch(() => ({}))) as { msg?: string; data?: FollowArtistResponse };
+
+  if (!res.ok) {
+    const message = (json && json.msg) || '작가 팔로우에 실패했습니다.';
+    const error: FetchError = new Error(message);
+    error.status = res.status;
+    throw error;
+  }
+
+  if (!json.data) {
+    const error: FetchError = new Error('작가 팔로우 응답이 올바르지 않습니다.');
+    error.status = res.status;
+    throw error;
+  }
+
+  const payload = json.data;
+  return {
+    followId: Number(payload.followId ?? 0),
+    artistId: Number(payload.artistId ?? artistId),
+    artistName: String(payload.artistName ?? ''),
+    profileImageUrl:
+      typeof payload.profileImageUrl === 'string' ? payload.profileImageUrl : undefined,
+    followerCount: Number(payload.followerCount ?? 0),
+    followedAt: String(payload.followedAt ?? ''),
+    isFollowing: Boolean(payload.isFollowing ?? true),
+  } satisfies FollowArtistResponse;
+}
+
+export async function unfollowArtist(
+  artistId: number,
+  options?: { accessToken?: string },
+): Promise<UnfollowArtistResponse> {
+  const headers: Record<string, string> = { accept: 'application/json' };
+  if (options?.accessToken) {
+    headers.Authorization = `Bearer ${options.accessToken}`;
+  }
+
+  const res = await fetch(`${API_BASE}/api/follows/artists/${artistId}`, {
+    method: 'DELETE',
+    headers,
+    credentials: 'include',
+  });
+
+  const json = (await res
+    .json()
+    .catch(() => ({}))) as { msg?: string; data?: { artistId?: number; artistName?: string } };
+
+  if (!res.ok) {
+    const message = (json && json.msg) || '작가 언팔로우에 실패했습니다.';
+    const error: FetchError = new Error(message);
+    error.status = res.status;
+    throw error;
+  }
+
+  const payload = json.data ?? {};
+  const normalizedId = Number(payload.artistId ?? artistId);
+
+  return {
+    artistId: normalizedId,
+    artistName: typeof payload.artistName === 'string' ? payload.artistName : undefined,
+    unfollowed: true,
+  } satisfies UnfollowArtistResponse;
 }
