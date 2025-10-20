@@ -63,7 +63,7 @@ function CashChargePage() {
   const [error, setError] = useState<string | null>(null);
   const TOSS_CLIENT_KEY = process.env.NEXT_PUBLIC_TOSS_CLIENT_KEY;
   const CLIENT_URL =
-    process.env.NEXT_PUBLIC_CLIENT_BASE_URL || 'http://localhost:3000';
+    process.env.NEXT_PUBLIC_CLIENT_BASE_URL ?? 'http://localhost:3000';
 
   const quickAmounts = [5000, 10000, 30000, 50000];
 
