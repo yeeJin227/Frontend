@@ -74,6 +74,7 @@ const PaymentForm = ({ cartItems }: PaymentFormProps) => {
             ? error.message
             : '결제 처리 중 문제가 발생했습니다. 다시 시도해주세요.',
         );
+        router.push('/user-dashboard/mori-cash/charge');
       }
     },
     onError: (error) => {

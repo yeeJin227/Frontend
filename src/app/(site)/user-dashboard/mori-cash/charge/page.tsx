@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import Wallet from '@/assets/wallet.svg';
+import { loadTossPayments } from '@tosspayments/payment-sdk';
 
 // --- API 연동을 위한 설정 ---
 const API_BASE_URL = (
@@ -15,6 +16,44 @@ interface CashData {
   updatedAt: string | null;
 }
 
+interface Payment {
+  /** 트랜잭션 고유 ID */
+  transactionId: number;
+
+  /** 사용자 ID */
+  userId: number;
+
+  /** 연관된 주문 ID */
+  orderId: string;
+
+  /** 결제/거래 금액 */
+  amount: number;
+
+  /** 결제 상태 (예시: PENDING, COMPLETED, FAILED) */
+  status: 'PENDING' | 'COMPLETED' | 'FAILED' | string;
+
+  /** 결제 수단 (예: CARD, BANK, MORI_CASH) */
+  paymentMethod: string;
+
+  /** PG사 이름 (예: TOSS, KAKAO, NICE) */
+  pgProvider: string;
+
+  /** PG사 측 트랜잭션 ID */
+  pgTransactionId: string;
+
+  /** PG사 승인 번호 */
+  pgApprovalNumber: string;
+
+  /** 결제 후 잔액 (캐시, 포인트 등) */
+  balanceAfter: number;
+
+  /** 생성 일시 (ISO 8601 형식) */
+  createdAt: string;
+
+  /** 완료 일시 (ISO 8601 형식) */
+  completedAt: string;
+}
+
 function CashChargePage() {
   // --- 상태 관리 ---
   const [currentCash, setCurrentCash] = useState<number | null>(null); // 보유 모리캐시 (API로부터 fetch)
@@ -22,6 +61,9 @@ function CashChargePage() {
   const [paymentMethod, setPaymentMethod] = useState<'naver' | 'toss'>('naver');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const TOSS_CLIENT_KEY = process.env.NEXT_PUBLIC_TOSS_CLIENT_KEY;
+  const CLIENT_URL =
+    process.env.NEXT_PUBLIC_CLIENT_BASE_URL || 'http://localhost:3000';
 
   const quickAmounts = [5000, 10000, 30000, 50000];
 
@@ -76,13 +118,48 @@ function CashChargePage() {
 
   const totalCash = (currentCash ?? 0) + chargeAmount;
 
-  const handleCharge = () => {
-    console.log('충전하기', {
+  const handleCharge = async () => {
+    console.log('충전 시도 : ', {
       chargeAmount,
       paymentMethod,
       totalCash,
     });
     // TODO: 충전 API 호출
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/cash/charge`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json;charset=UTF-8',
+        },
+        body: JSON.stringify({
+          amount: chargeAmount,
+          paymentMethod: '카드',
+          pgProvider: 'TOSS',
+        }),
+        credentials: 'include',
+      });
+
+      if (!response.ok)
+        throw new Error(`${response.status} : ${response.statusText}`);
+      if (!TOSS_CLIENT_KEY)
+        throw new Error('토스페이먼츠 클라이언트 키가 없습니다.');
+      const data: Promise<Payment> = await response.json();
+      try {
+        const tossPayments = await loadTossPayments(TOSS_CLIENT_KEY);
+        await tossPayments.requestPayment('카드', {
+          amount: chargeAmount,
+          orderId: (await data).orderId, // string이어야 함
+          orderName: '모리캐시 충전',
+          customerName: '이소민',
+          successUrl: `${CLIENT_URL}/payment/success`, // ⭐️ 성공 리다이렉트 URL
+          failUrl: `${CLIENT_URL}/payment/fail`, // ⭐️ 실패 리다이렉트 URL
+        });
+      } catch (error) {
+        console.error('토스 sdk 실행 중 에러 : ', error);
+      }
+    } catch (error) {
+      console.error('캐시 충전 중 에러 : ', error);
+    }
   };
 
   return (
@@ -161,7 +238,7 @@ function CashChargePage() {
                 충전 방법
               </span>
               <div className="flex gap-4">
-                <label className="flex items-center gap-2 cursor-pointer">
+                {/* <label className="flex items-center gap-2 cursor-pointer">
                   <input
                     type="radio"
                     name="payment"
@@ -176,7 +253,7 @@ function CashChargePage() {
                     />
                   </div>
                   <span className="text-[16px] font-medium">네이버페이</span>
-                </label>
+                </label> */}
 
                 <label className="flex items-center gap-2 cursor-pointer">
                   <input
