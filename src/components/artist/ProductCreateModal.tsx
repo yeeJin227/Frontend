@@ -48,32 +48,19 @@ const asAllowed = (t: UploadType | undefined): AllowedType =>
   t === 'MAIN' ? 'MAIN' : 'ADDITIONAL';
 
 // 파일 타입 배열에서 MAIN 인덱스 찾기
-const findMainIndex = (types: UploadType[]) => types.findIndex((t) => t === 'MAIN');
-
-// 작성 직전 파일 타입 동기화 (비허용 타입은 THUMBNAIL로 강제)
-function syncUploadedTypes(
-  files: File[],
-  fileTypes: UploadType[],
-  uploaded: UploadedImageInfo[]
-): UploadedImageInfo[] {
-  const byName = new Map<string, AllowedType>();
-  files.forEach((f, i) => byName.set(f.name, asAllowed(fileTypes[i])));
-
-  return uploaded.map((u, i) => {
-    const tByName = u.originalFileName ? byName.get(u.originalFileName) : undefined;
-    if (tByName) return { ...u, type: tByName };
-    const tByIndex = asAllowed(fileTypes[i]);
-    return { ...u, type: tByIndex };
-  });
-}
+const findMainIndex = (types: UploadType[]) =>
+  types.findIndex((t) => t === 'MAIN');
 
 // 폼 → 판매상태 계산
-function computeSellingStatusFromPayload(p: ProductCreatePayload): 'BEFORE_SELLING' | 'SELLING' | 'SOLD_OUT' | 'END_OF_SALE' {
+function computeSellingStatusFromPayload(
+  p: ProductCreatePayload,
+): 'BEFORE_SELLING' | 'SELLING' | 'SOLD_OUT' | 'END_OF_SALE' {
   const now = new Date();
   if (p.plannedSale) {
     const s = new Date(p.plannedSale.startAt);
     const e = p.plannedSale.endAt ? new Date(p.plannedSale.endAt) : undefined;
     if (!isNaN(s.getTime()) && now < s) return 'BEFORE_SELLING';
+    if (e && !isNaN(e.getTime()) && now > e) return 'END_OF_SALE';
     if (e && !isNaN(e.getTime()) && now > e) return 'END_OF_SALE';
   }
   if ((p.stock ?? 0) <= 0) return 'SOLD_OUT';
@@ -94,12 +81,17 @@ type ApiEnvelope<T> = { resultCode: string; msg: string; data: T | null };
 
 async function fetchArtistBusinessInfo(): Promise<ArtistBizInfo | null> {
   try {
-    const res = await fetch(`${process.env.NEXT_PUBLIC_API_BASE_URL}/api/artist/business-info`, {
-      method: 'GET',
-      headers: { accept: 'application/json;charset=UTF-8' },
-      credentials: 'include',
-    });
-    const json: ApiEnvelope<ArtistBizInfo> | undefined = await res.json().catch(() => undefined);
+    const res = await fetch(
+      `${process.env.NEXT_PUBLIC_API_BASE_URL}/api/artist/business-info`,
+      {
+        method: 'GET',
+        headers: { accept: 'application/json;charset=UTF-8' },
+        credentials: 'include',
+      },
+    );
+    const json: ApiEnvelope<ArtistBizInfo> | undefined = await res
+      .json()
+      .catch(() => undefined);
 
     if (!res.ok) {
       alert(json?.msg ?? '사업자 정보 조회 실패');
@@ -114,10 +106,17 @@ async function fetchArtistBusinessInfo(): Promise<ArtistBizInfo | null> {
 
 function toProductCreateDto(
   payload: ProductCreatePayload,
-  opts: { uploadedImages: UploadedImageInfo[]; tagDict: TagDict; isRestock?: boolean }
+  opts: {
+    uploadedImages: UploadedImageInfo[];
+    tagDict: TagDict;
+    isRestock?: boolean;
+  },
 ): ProductCreateDto {
   const categoryId = Number(payload.category2 || payload.category1);
-  const deliveryType = payload.shipping.type === 'CONDITIONAL' ? 'CONDITIONAL_FREE' : payload.shipping.type;
+  const deliveryType =
+    payload.shipping.type === 'CONDITIONAL'
+      ? 'CONDITIONAL_FREE'
+      : payload.shipping.type;
   const sellingStatus = computeSellingStatusFromPayload(payload);
 
   // 이름 → ID 매핑
@@ -138,7 +137,10 @@ function toProductCreateDto(
     deliveryType,
     deliveryCharge: deliveryType === 'FREE' ? 0 : payload.shipping.fee,
     additionalShippingCharge: payload.shipping.jejuExtraFee,
-    conditionalFreeAmount: deliveryType === 'CONDITIONAL_FREE' ? (payload.shipping.freeThreshold ?? 0) : null,
+    conditionalFreeAmount:
+      deliveryType === 'CONDITIONAL_FREE'
+        ? (payload.shipping.freeThreshold ?? 0)
+        : null,
 
     stock: payload.stock,
     description: payload.description,
@@ -152,8 +154,12 @@ function toProductCreateDto(
     isPlanned: !!payload.plannedSale,
     isRestock: !!opts.isRestock,
 
-    sellingStartDate: payload.plannedSale ? dateOnly(payload.plannedSale.startAt) : null,
-    sellingEndDate: payload.plannedSale ? dateOnly(payload.plannedSale.endAt) : null,
+    sellingStartDate: payload.plannedSale
+      ? dateOnly(payload.plannedSale.startAt)
+      : null,
+    sellingEndDate: payload.plannedSale
+      ? dateOnly(payload.plannedSale.endAt)
+      : null,
 
     tags: tagIds,
 
@@ -170,10 +176,8 @@ function toProductCreateDto(
     })),
 
     images: (opts.uploadedImages ?? []).map((img) => ({
-      url: img.url,
-      type: asAllowed(img.type), // 안전: 비허용 타입이 와도 강제 캐스팅
-      s3Key: img.s3Key,
-      originalFileName: img.originalFileName,
+      ...img,
+      type: (img.type ?? 'ADDITIONAL') as UploadType,
     })),
 
     certification: payload.certification ?? false,
@@ -186,11 +190,17 @@ function toProductCreateDto(
 type Props = {
   open: boolean;
   onClose: () => void;
-  onCreated?: (args: { productUuid: string; payload: ProductCreatePayload }) => void;
+  onCreated?: (args: {
+    productUuid: string;
+    payload: ProductCreatePayload;
+  }) => void;
   mode?: 'create' | 'edit';
   productUuid?: string;
   initialPayload?: ProductCreatePayload;
-  onUpdated?: (args: { productUuid: string; payload: ProductCreatePayload }) => void;
+  onUpdated?: (args: {
+    productUuid: string;
+    payload: ProductCreatePayload;
+  }) => void;
   onDeleted?: (args: { productUuid: string }) => void;
   productId?: string;
   onSaveSnapshot?: (productId: string, payload: ProductCreatePayload) => void;
@@ -203,7 +213,7 @@ type Props = {
     email?: string;
     businessAddress?: string;
     telecomSalesNumber?: string;
-  }
+  };
 };
 
 export default function ProductCreateModal({
@@ -261,12 +271,16 @@ export default function ProductCreateModal({
   const [options, setOptions] = useState<ProductOptionUI[]>([]);
   const [addons, setAddons] = useState<ProductAddonUI[]>([]);
 
-  const addOption = () => setOptions((p) => [...p, { id: crypto.randomUUID(), name: '' }]);
-  const removeOption = (idx: number) => setOptions((p) => p.filter((_, i) => i !== idx));
+  const addOption = () =>
+    setOptions((p) => [...p, { id: crypto.randomUUID(), name: '' }]);
+  const removeOption = (idx: number) =>
+    setOptions((p) => p.filter((_, i) => i !== idx));
   const updateOption = (idx: number, patch: Partial<ProductOptionUI>) =>
     setOptions((p) => p.map((o, i) => (i === idx ? { ...o, ...patch } : o)));
-  const addAddon = () => setAddons((p) => [...p, { id: crypto.randomUUID(), name: '' }]);
-  const removeAddon = (idx: number) => setAddons((p) => p.filter((_, i) => i !== idx));
+  const addAddon = () =>
+    setAddons((p) => [...p, { id: crypto.randomUUID(), name: '' }]);
+  const removeAddon = (idx: number) =>
+    setAddons((p) => p.filter((_, i) => i !== idx));
   const updateAddon = (idx: number, patch: Partial<ProductAddonUI>) =>
     setAddons((p) => p.map((o, i) => (i === idx ? { ...o, ...patch } : o)));
 
@@ -294,14 +308,18 @@ export default function ProductCreateModal({
   const [editorFullscreen, setEditorFullscreen] = useState(false);
 
   // 업로드 진행 상태
-  const [uploadingMap, setUploadingMap] = useState<Record<string, 'idle' | 'uploading' | 'done' | 'error'>>({});
+  const [uploadingMap, setUploadingMap] = useState<
+    Record<string, 'idle' | 'uploading' | 'done' | 'error'>
+  >({});
   // 파일 → s3Key 매핑
   const [fileS3Map, setFileS3Map] = useState<Record<string, string | null>>({});
 
   // ESC로 닫기
   useEffect(() => {
     if (!editorFullscreen) return;
-    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') setEditorFullscreen(false); };
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setEditorFullscreen(false);
+    };
     window.addEventListener('keydown', onKey);
     const prev = document.body.style.overflow;
     document.body.style.overflow = 'hidden';
@@ -420,7 +438,9 @@ export default function ProductCreateModal({
   }, [tagsRemote]);
 
   useEffect(() => {
-    const urls = files.map((f) => (f.type?.startsWith('image/') ? URL.createObjectURL(f) : ''));
+    const urls = files.map((f) =>
+      f.type?.startsWith('image/') ? URL.createObjectURL(f) : '',
+    );
     setPreviews(urls);
     return () => urls.forEach((u) => u && URL.revokeObjectURL(u));
   }, [files]);
@@ -454,8 +474,14 @@ export default function ProductCreateModal({
 
     setBundleShipping(!!payload.bundleShipping);
     setShippingType(payload.shipping?.type ?? 'FREE');
-    setShippingFee(payload.shipping?.type === 'FREE' ? 0 : (payload.shipping?.fee ?? 0));
-    setFreeThreshold(payload.shipping?.type === 'CONDITIONAL' ? (payload.shipping?.freeThreshold ?? 0) : 0);
+    setShippingFee(
+      payload.shipping?.type === 'FREE' ? 0 : (payload.shipping?.fee ?? 0),
+    );
+    setFreeThreshold(
+      payload.shipping?.type === 'CONDITIONAL'
+        ? (payload.shipping?.freeThreshold ?? 0)
+        : 0,
+    );
     setJejuExtraFee(payload.shipping?.jejuExtraFee ?? 0);
 
     const planned = !!payload.plannedSale;
@@ -466,7 +492,8 @@ export default function ProductCreateModal({
     setIsRestock(false);
 
     setTags(payload.tags ?? []);
-    const usingOptions = (payload.options?.length ?? 0) > 0 || (payload.addons?.length ?? 0) > 0;
+    const usingOptions =
+      (payload.options?.length ?? 0) > 0 || (payload.addons?.length ?? 0) > 0;
     setUseOptions(usingOptions);
     setOptions(payload.options ?? []);
     setAddons(payload.addons ?? []);
@@ -490,7 +517,7 @@ export default function ProductCreateModal({
 
     // 중복 제거
     const dedup = incoming.filter(
-      (nf) => !files.some((ef) => fileKey(ef) === fileKey(nf))
+      (nf) => !files.some((ef) => fileKey(ef) === fileKey(nf)),
     );
     if (dedup.length === 0) return;
 
@@ -500,13 +527,14 @@ export default function ProductCreateModal({
 
     // 타입 기본값: 첫 파일만 MAIN, 나머지는 ADDITIONAL
     const defaultsForNew: AllowedType[] = dedup.map((_, i) =>
-      files.length === 0 && i === 0 ? 'MAIN' : 'ADDITIONAL'
+      files.length === 0 && i === 0 ? 'MAIN' : 'ADDITIONAL',
     );
 
     // 기존에 이미 MAIN이 있었다면 새로 들어온 것들은 모두 ADDITIONAL
     const alreadyMainIdx = findMainIndex(fileTypes);
     if (alreadyMainIdx >= 0) {
-      for (let i = 0; i < defaultsForNew.length; i++) defaultsForNew[i] = 'ADDITIONAL';
+      for (let i = 0; i < defaultsForNew.length; i++)
+        defaultsForNew[i] = 'ADDITIONAL';
     }
 
     setFileTypes((prev) => [...prev, ...defaultsForNew]);
@@ -520,38 +548,38 @@ export default function ProductCreateModal({
 
     // 신규로 선택한 파일만 업로드
     try {
-  const uploaded = await uploadProductImages(dedup, defaultsForNew);
+      const uploaded = await uploadProductImages(dedup, defaultsForNew);
 
-  // ✅ 기존 타입과 겹치는 이미지는 교체 (누적 X)
-  setUploadedImages((prev) => [...prev, ...uploaded]);
+      // ✅ 기존 타입과 겹치는 이미지는 교체 (누적 X)
+      setUploadedImages((prev) => [...prev, ...uploaded]);
 
-  // 파일 → s3Key 매핑 저장
-  setFileS3Map((prev) => {
-    const next = { ...prev };
-    dedup.forEach((f, i) => {
-      const key = fileKey(f);
-      const s3Key = uploaded[i]?.s3Key ?? null;
-      next[key] = s3Key;
-    });
-    return next;
-  });
+      // 파일 → s3Key 매핑 저장
+      setFileS3Map((prev) => {
+        const next = { ...prev };
+        dedup.forEach((f, i) => {
+          const key = fileKey(f);
+          const s3Key = uploaded[i]?.s3Key ?? null;
+          next[key] = s3Key;
+        });
+        return next;
+      });
 
-  // 상태 완료 처리
-  setUploadingMap((prev) => {
-    const next = { ...prev };
-    dedup.forEach((f) => (next[fileKey(f)] = 'done'));
-    return next;
-  });
-} catch (e: unknown) {
-  const msg = e instanceof Error ? e.message : '이미지 업로드 실패';
-  alert(msg);
+      // 상태 완료 처리
+      setUploadingMap((prev) => {
+        const next = { ...prev };
+        dedup.forEach((f) => (next[fileKey(f)] = 'done'));
+        return next;
+      });
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : '이미지 업로드 실패';
+      alert(msg);
 
-  setUploadingMap((prev) => {
-    const next = { ...prev };
-    dedup.forEach((f) => (next[fileKey(f)] = 'error'));
-    return next;
-  });
-}
+      setUploadingMap((prev) => {
+        const next = { ...prev };
+        dedup.forEach((f) => (next[fileKey(f)] = 'error'));
+        return next;
+      });
+    }
   };
 
   // 타입 변경 (항상 MAIN 1개 유지)
@@ -582,11 +610,11 @@ export default function ProductCreateModal({
   };
 
   // (에디터) 설명 이미지 업로드
-  const handleUploadDescImage = async (file: File) : Promise<string> => {
+  const handleUploadDescImage = async (file: File): Promise<string> => {
     const [uploaded] = await uploadDescriptionImages([file]);
-    if(!uploaded) throw new Error('설명 이미지 URL을 받지 못했습니다.');
+    if (!uploaded) throw new Error('설명 이미지 URL을 받지 못했습니다.');
     return uploaded;
-  }
+  };
 
   // 폼 payload
   const buildPayload = (): ProductCreatePayload => ({
@@ -628,7 +656,7 @@ export default function ProductCreateModal({
       bundleShippingAvailable: boolean;
       isRestock: boolean;
       isPlanned: boolean;
-    }
+    },
   ) {
     const errs: string[] = [];
 
@@ -643,14 +671,18 @@ export default function ProductCreateModal({
     if (isBlank(p.origin)) errs.push('제조국은 필수입니다.');
 
     // 가격/재고/할인
-    if (p.price == null || p.price < 1) errs.push('정가는 최소 1 이상이어야 합니다.');
+    if (p.price == null || p.price < 1)
+      errs.push('정가는 최소 1 이상이어야 합니다.');
     if (p.discountRate == null || p.discountRate < 0 || p.discountRate > 100)
       errs.push('할인율은 0 이상 100 이하이어야 합니다.');
-    if (p.stock == null || p.stock < 1) errs.push('재고는 최소 1 이상이어야 합니다.');
+    if (p.stock == null || p.stock < 1)
+      errs.push('재고는 최소 1 이상이어야 합니다.');
 
     // 구매수량
-    if (p.minQty == null || p.minQty < 1) errs.push('최소 구매 수량은 1 이상이어야 합니다.');
-    if (p.maxQty == null || p.maxQty < 1) errs.push('최대 구매 수량은 1 이상이어야 합니다.');
+    if (p.minQty == null || p.minQty < 1)
+      errs.push('최소 구매 수량은 1 이상이어야 합니다.');
+    if (p.maxQty == null || p.maxQty < 1)
+      errs.push('최대 구매 수량은 1 이상이어야 합니다.');
     if (p.minQty != null && p.maxQty != null && p.maxQty < p.minQty)
       errs.push('최대 구매 수량은 최소 구매 수량 이상이어야 합니다.');
 
@@ -674,13 +706,20 @@ export default function ProductCreateModal({
           break;
         case 'CONDITIONAL':
           if (p.shipping.fee == null || p.shipping.fee < 0) {
-            errs.push('조건부 무료배송 시 기본 배송비를 입력해주세요 (0 이상).');
+            errs.push(
+              '조건부 무료배송 시 기본 배송비를 입력해주세요 (0 이상).',
+            );
           }
-          if (p.shipping.freeThreshold == null || p.shipping.freeThreshold <= 0) {
+          if (
+            p.shipping.freeThreshold == null ||
+            p.shipping.freeThreshold <= 0
+          ) {
             errs.push('조건부 무료배송 기준 금액을 입력해주세요.');
           }
           if (p.shipping.jejuExtraFee == null || p.shipping.jejuExtraFee < 0) {
-            errs.push('조건부 무료배송 시 제주 추가배송비를 입력해주세요 (0 이상).');
+            errs.push(
+              '조건부 무료배송 시 제주 추가배송비를 입력해주세요 (0 이상).',
+            );
           }
           break;
         default:
@@ -689,22 +728,32 @@ export default function ProductCreateModal({
     }
 
     // 판매 설정
-    if (typeof ctx.isPlanned !== 'boolean') errs.push('기획상품 여부는 필수입니다.');
-    if (typeof ctx.isRestock !== 'boolean') errs.push('재입고 여부는 필수입니다.');
+    if (typeof ctx.isPlanned !== 'boolean')
+      errs.push('기획상품 여부는 필수입니다.');
+    if (typeof ctx.isRestock !== 'boolean')
+      errs.push('재입고 여부는 필수입니다.');
     if (p.plannedSale) {
-      if (isBlank(p.plannedSale.startAt)) errs.push('기획상품의 판매 시작일을 입력해주세요.');
-      if (p.plannedSale.endAt && p.plannedSale.startAt && new Date(p.plannedSale.endAt) < new Date(p.plannedSale.startAt)) {
+      if (isBlank(p.plannedSale.startAt))
+        errs.push('기획상품의 판매 시작일을 입력해주세요.');
+      if (
+        p.plannedSale.endAt &&
+        p.plannedSale.startAt &&
+        new Date(p.plannedSale.endAt) < new Date(p.plannedSale.startAt)
+      ) {
         errs.push('판매 종료일은 시작일 이후여야 합니다.');
       }
     }
 
     // 태그/이미지
-    if (!p.tags || p.tags.length < 1) errs.push('스타일 태그는 최소 1개 이상 선택해주세요.');
+    if (!p.tags || p.tags.length < 1)
+      errs.push('스타일 태그는 최소 1개 이상 선택해주세요.');
     const upImgs = ctx.uploadedImages ?? [];
-    if (upImgs.length < 1) errs.push('이미지는 최소 1개 이상 업로드해야 합니다.');
+    if (upImgs.length < 1)
+      errs.push('이미지는 최소 1개 이상 업로드해야 합니다.');
     const types = upImgs.map((u) => asAllowed(u.type));
     const mainCount = types.filter((t) => t === 'MAIN').length;
-    if (mainCount !== 1) errs.push('대표 이미지(MAIN)는 정확히 1개여야 합니다.');
+    if (mainCount !== 1)
+      errs.push('대표 이미지(MAIN)는 정확히 1개여야 합니다.');
 
     // KC 인증 여부
     if (p.certification == null) errs.push('KC 인증 여부는 필수입니다.');
@@ -713,13 +762,18 @@ export default function ProductCreateModal({
     if (ctx.usingOptions) {
       (p.options ?? []).forEach((o, i) => {
         if (isBlank(o.name)) errs.push(`옵션 #${i + 1}: 옵션명은 필수입니다.`);
-        if (o.stock == null || o.stock < 1) errs.push(`옵션 #${i + 1}: 재고는 1 이상이어야 합니다.`);
-        if (o.extraPrice == null || o.extraPrice < 0) errs.push(`옵션 #${i + 1}: 추가금은 0 이상이어야 합니다.`);
+        if (o.stock == null || o.stock < 1)
+          errs.push(`옵션 #${i + 1}: 재고는 1 이상이어야 합니다.`);
+        if (o.extraPrice == null || o.extraPrice < 0)
+          errs.push(`옵션 #${i + 1}: 추가금은 0 이상이어야 합니다.`);
       });
       (p.addons ?? []).forEach((a, i) => {
-        if (isBlank(a.name)) errs.push(`추가상품 #${i + 1}: 이름은 필수입니다.`);
-        if (a.stock == null || a.stock < 1) errs.push(`추가상품 #${i + 1}: 재고는 1 이상이어야 합니다.`);
-        if (a.extraPrice == null || a.extraPrice < 0) errs.push(`추가상품 #${i + 1}: 가격은 0 이상이어야 합니다.`);
+        if (isBlank(a.name))
+          errs.push(`추가상품 #${i + 1}: 이름은 필수입니다.`);
+        if (a.stock == null || a.stock < 1)
+          errs.push(`추가상품 #${i + 1}: 재고는 1 이상이어야 합니다.`);
+        if (a.extraPrice == null || a.extraPrice < 0)
+          errs.push(`추가상품 #${i + 1}: 가격은 0 이상이어야 합니다.`);
       });
     }
 
@@ -750,7 +804,8 @@ export default function ProductCreateModal({
       try {
         await deleteProductImage(s3Key);
       } catch (e: unknown) {
-        const msg = e instanceof Error ? e.message : 'S3 파일 삭제에 실패했습니다.';
+        const msg =
+          e instanceof Error ? e.message : 'S3 파일 삭제에 실패했습니다.';
         alert(msg);
         return;
       }
@@ -783,7 +838,9 @@ export default function ProductCreateModal({
     if (s3Key) {
       setUploadedImages((prev) => prev.filter((u) => u.s3Key !== s3Key));
     } else {
-      setUploadedImages((prev) => prev.filter((u) => u.originalFileName !== target.name));
+      setUploadedImages((prev) =>
+        prev.filter((u) => u.originalFileName !== target.name),
+      );
     }
   };
 
@@ -791,12 +848,9 @@ export default function ProductCreateModal({
   const handleCreate = async () => {
     const payload = buildPayload();
 
-    // 타입 동기화
-    const syncedImages = syncUploadedTypes(files, fileTypes, uploadedImages);
-
     // 규칙 검증
     const errs = validateAgainstBackendRules(payload, {
-      uploadedImages: syncedImages,
+      uploadedImages,
       shippingType,
       usingOptions: useOptions,
       bundleShippingAvailable: bundleShipping,
@@ -808,7 +862,11 @@ export default function ProductCreateModal({
       return;
     }
 
-    const dto = toProductCreateDto(payload, { uploadedImages: syncedImages, tagDict, isRestock });
+    const dto = toProductCreateDto(payload, {
+      uploadedImages,
+      tagDict,
+      isRestock,
+    });
 
     try {
       setSubmitting(true);
@@ -817,7 +875,8 @@ export default function ProductCreateModal({
       alert(`상품 등록 성공: ${newUuid}`);
       onClose();
     } catch (e: unknown) {
-      const msg = e instanceof Error ? e.message : '등록 중 오류가 발생했습니다.';
+      const msg =
+        e instanceof Error ? e.message : '등록 중 오류가 발생했습니다.';
       alert(msg);
     } finally {
       setSubmitting(false);
@@ -832,12 +891,9 @@ export default function ProductCreateModal({
       return;
     }
 
-    // 타입 동기화
-    const syncedImages = syncUploadedTypes(files, fileTypes, uploadedImages);
-
     // 규칙 검증
     const errs = validateAgainstBackendRules(payload, {
-      uploadedImages: syncedImages,
+      uploadedImages,
       shippingType,
       usingOptions: useOptions,
       bundleShippingAvailable: bundleShipping,
@@ -849,7 +905,11 @@ export default function ProductCreateModal({
       return;
     }
 
-    const dto = toProductCreateDto(payload, { uploadedImages: syncedImages, tagDict, isRestock });
+    const dto = toProductCreateDto(payload, {
+      uploadedImages,
+      tagDict,
+      isRestock,
+    });
 
     try {
       setSubmitting(true);
@@ -858,7 +918,8 @@ export default function ProductCreateModal({
       alert('상품이 수정되었습니다.');
       onClose();
     } catch (e: unknown) {
-      const msg = e instanceof Error ? e.message : '수정 중 오류가 발생했습니다.';
+      const msg =
+        e instanceof Error ? e.message : '수정 중 오류가 발생했습니다.';
       alert(msg);
     } finally {
       setSubmitting(false);
@@ -876,7 +937,10 @@ export default function ProductCreateModal({
   if (!open) return null;
 
   return (
-    <div className="fixed inset-0 z-[999] flex items-center justify-center bg-black/50" onClick={handleCloseWithSave}>
+    <div
+      className="fixed inset-0 z-[999] flex items-center justify-center bg-black/50"
+      onClick={handleCloseWithSave}
+    >
       <div
         className="bg-white rounded-2xl overflow-hidden shadow-xl w-[960px] max-w-[95vw] max-h-[90vh] flex flex-col"
         onClick={(e) => e.stopPropagation()}
@@ -884,7 +948,9 @@ export default function ProductCreateModal({
         {/* 헤더 */}
         <div className="sticky top-0 z-10 bg-white px-6 pt-5 pb-4">
           <div className="flex items-center justify-between">
-            <h2 className="text-lg font-bold">{mode === 'edit' ? '상품 수정' : '상품 등록'}</h2>
+            <h2 className="text-lg font-bold">
+              {mode === 'edit' ? '상품 수정' : '상품 등록'}
+            </h2>
 
             <button
               className="cursor-pointer rounded transition hover:bg-black/5 p-2"
@@ -945,7 +1011,11 @@ export default function ProductCreateModal({
                   className="rounded border border-[var(--color-gray-200)] py-2 px-3 text-sm"
                 >
                   <option value="">
-                    {catsLoading ? '불러오는 중…' : catsErr ? '불러오기 실패' : '상위 카테고리'}
+                    {catsLoading
+                      ? '불러오는 중…'
+                      : catsErr
+                        ? '불러오기 실패'
+                        : '상위 카테고리'}
                   </option>
                   {!catsLoading &&
                     !catsErr &&
@@ -963,7 +1033,11 @@ export default function ProductCreateModal({
                   className="rounded border border-[var(--color-gray-200)] py-2 px-3 text-sm"
                 >
                   <option value="">
-                    {!category1 ? '하위 카테고리' : subOptions.length ? '하위 카테고리' : '하위 카테고리 없음'}
+                    {!category1
+                      ? '하위 카테고리'
+                      : subOptions.length
+                        ? '하위 카테고리'
+                        : '하위 카테고리 없음'}
                   </option>
                   {category1 &&
                     subOptions.map((s: Category) => (
@@ -1064,7 +1138,8 @@ export default function ProductCreateModal({
               </label>
             </div>
             <p className="inline-block text-xs text-gray-500 bg-primary-20 p-1">
-              * 판매가 (≥1원), 재고 (≥1개), 최소/최대 구매 수량 (≥1개), 할인율 (0~100%)
+              * 판매가 (≥1원), 재고 (≥1개), 최소/최대 구매 수량 (≥1개), 할인율
+              (0~100%)
             </p>
           </section>
 
@@ -1087,7 +1162,9 @@ export default function ProductCreateModal({
                 <span className="w-32 text-sm">배송비 유형</span>
                 <select
                   value={shippingType}
-                  onChange={(e) => setShippingType(e.target.value as ShippingTypeUI)}
+                  onChange={(e) =>
+                    setShippingType(e.target.value as ShippingTypeUI)
+                  }
                   className="flex-1 rounded border border-[var(--color-gray-200)] py-2 px-3 text-sm"
                 >
                   <option value="FREE">무료배송</option>
@@ -1103,7 +1180,9 @@ export default function ProductCreateModal({
                     type="number"
                     min={0}
                     value={shippingFee}
-                    onChange={(e) => setShippingFee(Number(e.target.value) || 0)}
+                    onChange={(e) =>
+                      setShippingFee(Number(e.target.value) || 0)
+                    }
                     className="flex-1 rounded border border-[var(--color-gray-200)] px-3 py-2 text-sm"
                   />
                 </label>
@@ -1116,7 +1195,9 @@ export default function ProductCreateModal({
                     type="number"
                     min={0}
                     value={freeThreshold}
-                    onChange={(e) => setFreeThreshold(Number(e.target.value) || 0)}
+                    onChange={(e) =>
+                      setFreeThreshold(Number(e.target.value) || 0)
+                    }
                     className="flex-1 rounded border border-[var(--color-gray-200)] px-3 py-2 text-sm"
                   />
                 </label>
@@ -1134,7 +1215,8 @@ export default function ProductCreateModal({
               </label>
             </div>
             <p className="inline-block text-xs text-gray-500 bg-primary-20 p-1">
-              * 배송비 유형 (필수), 기본/추가 배송비 (≥0원), 조건부 무료 시 기준금액 필요합니다.
+              * 배송비 유형 (필수), 기본/추가 배송비 (≥0원), 조건부 무료 시
+              기준금액 필요합니다.
             </p>
           </section>
 
@@ -1189,10 +1271,14 @@ export default function ProductCreateModal({
               {/* 태그(스타일) */}
               <div className="md:col-span-3">
                 <div className="flex items-start gap-3">
-                  <span className="w-32 shrink-0 text-sm mt-2">태그(스타일)</span>
+                  <span className="w-32 shrink-0 text-sm mt-2">
+                    태그(스타일)
+                  </span>
 
                   {tagsLoading ? (
-                    <p className="text-sm text-gray-500 mt-2">태그 불러오는 중...</p>
+                    <p className="text-sm text-gray-500 mt-2">
+                      태그 불러오는 중...
+                    </p>
                   ) : tagsError ? (
                     <p className="text-sm text-red-500 mt-2">{tagsError}</p>
                   ) : (
@@ -1202,12 +1288,19 @@ export default function ProductCreateModal({
                         if (!label) return null;
                         const checked = tags.includes(label);
                         return (
-                          <label key={t.id} className="inline-flex items-center gap-2 text-sm border border-gray-200 rounded px-2">
+                          <label
+                            key={t.id}
+                            className="inline-flex items-center gap-2 text-sm border border-gray-200 rounded px-2"
+                          >
                             <input
                               type="checkbox"
                               checked={checked}
                               onChange={(e) =>
-                                setTags((prev) => (e.target.checked ? [...prev, label] : prev.filter((x) => x !== label)))
+                                setTags((prev) =>
+                                  e.target.checked
+                                    ? [...prev, label]
+                                    : prev.filter((x) => x !== label),
+                                )
                               }
                             />
                             <span className="py-2">{label}</span>
@@ -1245,11 +1338,16 @@ export default function ProductCreateModal({
                 <div className="space-y-2">
                   <div className="text-sm font-medium">옵션</div>
                   {options.map((opt, idx) => (
-                    <div key={opt.id} className="grid grid-cols-1 md:grid-cols-4 gap-2">
+                    <div
+                      key={opt.id}
+                      className="grid grid-cols-1 md:grid-cols-4 gap-2"
+                    >
                       <input
                         placeholder="옵션명"
                         value={opt.name}
-                        onChange={(e) => updateOption(idx, { name: e.target.value })}
+                        onChange={(e) =>
+                          updateOption(idx, { name: e.target.value })
+                        }
                         className="rounded border border-[var(--color-gray-200)] px-3 py-2 text-sm"
                       />
                       <input
@@ -1257,7 +1355,11 @@ export default function ProductCreateModal({
                         min={1}
                         placeholder="재고"
                         value={opt.stock ?? 0}
-                        onChange={(e) => updateOption(idx, { stock: Number(e.target.value) || 0 })}
+                        onChange={(e) =>
+                          updateOption(idx, {
+                            stock: Number(e.target.value) || 0,
+                          })
+                        }
                         className="rounded border border-[var(--color-gray-200)] px-3 py-2 text-sm"
                       />
                       <input
@@ -1265,7 +1367,11 @@ export default function ProductCreateModal({
                         min={0}
                         placeholder="추가금(원)"
                         value={opt.extraPrice ?? 0}
-                        onChange={(e) => updateOption(idx, { extraPrice: Number(e.target.value) || 0 })}
+                        onChange={(e) =>
+                          updateOption(idx, {
+                            extraPrice: Number(e.target.value) || 0,
+                          })
+                        }
                         className="rounded border border-[var(--color-gray-200)] px-3 py-2 text-sm"
                       />
                       <div className="flex items-center justify-end">
@@ -1291,11 +1397,16 @@ export default function ProductCreateModal({
                 <div className="space-y-2">
                   <div className="text-sm font-medium">추가상품</div>
                   {addons.map((ad, idx) => (
-                    <div key={ad.id} className="grid grid-cols-1 md:grid-cols-4 gap-2">
+                    <div
+                      key={ad.id}
+                      className="grid grid-cols-1 md:grid-cols-4 gap-2"
+                    >
                       <input
                         placeholder="추가상품명"
                         value={ad.name}
-                        onChange={(e) => updateAddon(idx, { name: e.target.value })}
+                        onChange={(e) =>
+                          updateAddon(idx, { name: e.target.value })
+                        }
                         className="rounded border border-[var(--color-gray-200)] px-3 py-2 text-sm"
                       />
                       <input
@@ -1303,7 +1414,11 @@ export default function ProductCreateModal({
                         min={1}
                         placeholder="재고"
                         value={ad.stock ?? 0}
-                        onChange={(e) => updateAddon(idx, { stock: Number(e.target.value) || 0 })}
+                        onChange={(e) =>
+                          updateAddon(idx, {
+                            stock: Number(e.target.value) || 0,
+                          })
+                        }
                         className="rounded border border-[var(--color-gray-200)] px-3 py-2 text-sm"
                       />
                       <input
@@ -1311,7 +1426,11 @@ export default function ProductCreateModal({
                         min={0}
                         placeholder="가격(원)"
                         value={ad.extraPrice ?? 0}
-                        onChange={(e) => updateAddon(idx, { extraPrice: Number(e.target.value) || 0 })}
+                        onChange={(e) =>
+                          updateAddon(idx, {
+                            extraPrice: Number(e.target.value) || 0,
+                          })
+                        }
                         className="rounded border border-[var(--color-gray-200)] px-3 py-2 text-sm"
                       />
                       <div className="flex items-center justify-end">
@@ -1336,7 +1455,8 @@ export default function ProductCreateModal({
               </>
             )}
             <p className="inline-block text-xs text-gray-500 bg-primary-20 p-1">
-              * 옵션/추가상품 사용 시 각 항목 이름 필수, 재고 (≥ 1개), 금액 (≥ 0원)
+              * 옵션/추가상품 사용 시 각 항목 이름 필수, 재고 (≥ 1개), 금액 (≥
+              0원)
             </p>
           </section>
 
@@ -1368,12 +1488,15 @@ export default function ProductCreateModal({
                       if (!data) return;
                       setBizInfo((prev) => ({
                         businessName: data.businessName ?? prev.businessName,
-                        businessNumber: data.businessNumber ?? prev.businessNumber,
+                        businessNumber:
+                          data.businessNumber ?? prev.businessNumber,
                         ownerName: data.ownerName ?? prev.ownerName,
                         asManager: data.asManager ?? prev.asManager,
                         email: data.email ?? prev.email,
-                        businessAddress: data.businessAddress ?? prev.businessAddress,
-                        telecomSalesNumber: data.telecomSalesNumber ?? prev.telecomSalesNumber,
+                        businessAddress:
+                          data.businessAddress ?? prev.businessAddress,
+                        telecomSalesNumber:
+                          data.telecomSalesNumber ?? prev.telecomSalesNumber,
                       }));
                     }}
                     className="shrink-0 text-sm border rounded px-3 py-2 hover:bg-black/5 disabled:opacity-60"
@@ -1386,50 +1509,72 @@ export default function ProductCreateModal({
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                   <input
                     value={bizInfo.businessName}
-                    onChange={(e) => setBizInfo({ ...bizInfo, businessName: e.target.value })}
+                    onChange={(e) =>
+                      setBizInfo({ ...bizInfo, businessName: e.target.value })
+                    }
                     placeholder="제조자"
                     className="rounded border border-[var(--color-gray-200)] px-3 py-2 text-sm"
                   />
                   <input
                     value={bizInfo.businessNumber}
-                    onChange={(e) => setBizInfo({ ...bizInfo, businessNumber: e.target.value })}
+                    onChange={(e) =>
+                      setBizInfo({ ...bizInfo, businessNumber: e.target.value })
+                    }
                     placeholder="사업자 등록 번호 (예: 123-45-67890)"
                     className="rounded border border-[var(--color-gray-200)] px-3 py-2 text-sm"
                   />
                   <input
                     value={bizInfo.ownerName}
-                    onChange={(e) => setBizInfo({ ...bizInfo, ownerName: e.target.value })}
+                    onChange={(e) =>
+                      setBizInfo({ ...bizInfo, ownerName: e.target.value })
+                    }
                     placeholder="대표자명"
                     className="rounded border border-[var(--color-gray-200)] px-3 py-2 text-sm"
                   />
                   <input
                     value={bizInfo.asManager}
-                    onChange={(e) => setBizInfo({ ...bizInfo, asManager: e.target.value })}
+                    onChange={(e) =>
+                      setBizInfo({ ...bizInfo, asManager: e.target.value })
+                    }
                     placeholder="A/S 책임자 / 전화번호"
                     className="rounded border border-[var(--color-gray-200)] px-3 py-2 text-sm"
                   />
                   <input
                     type="email"
                     value={bizInfo.email}
-                    onChange={(e) => setBizInfo({ ...bizInfo, email: e.target.value })}
+                    onChange={(e) =>
+                      setBizInfo({ ...bizInfo, email: e.target.value })
+                    }
                     placeholder="전자우편주소"
                     className="rounded border border-[var(--color-gray-200)] px-3 py-2 text-sm"
                   />
                   <input
                     value={bizInfo.businessAddress}
-                    onChange={(e) => setBizInfo({ ...bizInfo, businessAddress: e.target.value })}
+                    onChange={(e) =>
+                      setBizInfo({
+                        ...bizInfo,
+                        businessAddress: e.target.value,
+                      })
+                    }
                     placeholder="사업장 소재지"
                     className="rounded border border-[var(--color-gray-200)] px-3 py-2 text-sm"
                   />
                   <input
                     value={bizInfo.telecomSalesNumber}
-                    onChange={(e) => setBizInfo({ ...bizInfo, telecomSalesNumber: e.target.value })}
+                    onChange={(e) =>
+                      setBizInfo({
+                        ...bizInfo,
+                        telecomSalesNumber: e.target.value,
+                      })
+                    }
                     placeholder="통신 판매업 신고 번호"
                     className="rounded border border-[var(--color-gray-200)] px-3 py-2 text-sm md:col-span-2"
                   />
                 </div>
                 <p className="inline-block text-xs text-gray-500 bg-primary-20 p-1 mt-2">
-                  * 작가 프로필의 사업자 정보(제조자, 사업자등록번호, 대표자명, A/S 책임자/전화번호, 이메일, 사업장 소재지, 통신판매업 신고번호)를 불러와 편집할 수 있습니다.
+                  * 작가 프로필의 사업자 정보(제조자, 사업자등록번호, 대표자명,
+                  A/S 책임자/전화번호, 이메일, 사업장 소재지, 통신판매업
+                  신고번호)를 불러와 편집할 수 있습니다.
                 </p>
               </div>
             </div>
@@ -1464,7 +1609,8 @@ export default function ProductCreateModal({
             </div>
 
             <p className="inline-block text-xs text-gray-500 bg-primary-20 p-1">
-              * 상품 상세 설명은 필수입니다. (더블클릭 또는 ‘상품 설명 크게 보기’로 확대)
+              * 상품 상세 설명은 필수입니다. (더블클릭 또는 ‘상품 설명 크게
+              보기’로 확대)
             </p>
           </section>
 
@@ -1498,8 +1644,16 @@ export default function ProductCreateModal({
                     value={editorValue}
                     onChange={setEditorValue}
                     onUploadImage={handleUploadDescImage}
-                    minHeight={typeof window !== 'undefined' ? Math.max(480, Math.floor(window.innerHeight * 0.6)) : 480}
-                    maxHeight={typeof window !== 'undefined' ? Math.floor(window.innerHeight * 0.8) : 700}
+                    minHeight={
+                      typeof window !== 'undefined'
+                        ? Math.max(480, Math.floor(window.innerHeight * 0.6))
+                        : 480
+                    }
+                    maxHeight={
+                      typeof window !== 'undefined'
+                        ? Math.floor(window.innerHeight * 0.8)
+                        : 700
+                    }
                   />
                 </div>
 
@@ -1543,8 +1697,8 @@ export default function ProductCreateModal({
                     files.length === 0
                       ? ''
                       : files.length === 1
-                      ? files[0].name
-                      : `${files[0].name} 외 ${files.length - 1}개`
+                        ? files[0].name
+                        : `${files[0].name} 외 ${files.length - 1}개`
                   }
                   placeholder="파일을 선택하세요"
                   className="w-full rounded border border-[var(--color-gray-200)] px-3 py-2 pr-24 leading-none text-sm"
@@ -1570,7 +1724,10 @@ export default function ProductCreateModal({
                   const status = uploadingMap[key] ?? 'idle';
 
                   return (
-                    <div key={`${file.name}-${file.size}-${idx}`} className="flex items-center gap-3 text-sm">
+                    <div
+                      key={`${file.name}-${file.size}-${idx}`}
+                      className="flex items-center gap-3 text-sm"
+                    >
                       {/* 미리보기 */}
                       <div className="w-10 h-10 rounded overflow-hidden bg-gray-100 flex items-center justify-center shrink-0">
                         {previews[idx] ? (
@@ -1581,7 +1738,9 @@ export default function ProductCreateModal({
                             draggable={false}
                           />
                         ) : (
-                          <span className="text-[10px] text-gray-500 px-1 text-center leading-tight">미리보기 없음</span>
+                          <span className="text-[10px] text-gray-500 px-1 text-center leading-tight">
+                            미리보기 없음
+                          </span>
                         )}
                       </div>
 
@@ -1595,10 +1754,10 @@ export default function ProductCreateModal({
                           (status === 'uploading'
                             ? 'bg-yellow-100 text-yellow-800'
                             : status === 'done'
-                            ? 'bg-green-100 text-green-800'
-                            : status === 'error'
-                            ? 'bg-red-100 text-red-700'
-                            : 'bg-gray-100 text-gray-700')
+                              ? 'bg-green-100 text-green-800'
+                              : status === 'error'
+                                ? 'bg-red-100 text-red-700'
+                                : 'bg-gray-100 text-gray-700')
                         }
                       >
                         {status === 'uploading' && '업로드 중…'}
@@ -1610,10 +1769,19 @@ export default function ProductCreateModal({
                       {/* 타입 선택 — MAIN/ADDITIONAL만 */}
                       <select
                         value={asAllowed(fileTypes[idx])}
-                        onChange={(e) => handleChangeFileType(idx, e.target.value as AllowedType)}
+                        onChange={(e) =>
+                          handleChangeFileType(
+                            idx,
+                            e.target.value as AllowedType,
+                          )
+                        }
                         className="rounded border border-[var(--color-gray-200)] py-1.5 px-2"
                         disabled={status === 'uploading'}
-                        title={status === 'uploading' ? '업로드 중에는 변경할 수 없어요' : undefined}
+                        title={
+                          status === 'uploading'
+                            ? '업로드 중에는 변경할 수 없어요'
+                            : undefined
+                        }
                       >
                         <option value="MAIN">대표 이미지</option>
                         <option value="ADDITIONAL">추가이미지</option>
@@ -1625,7 +1793,11 @@ export default function ProductCreateModal({
                         onClick={() => removeOneFile(idx)}
                         disabled={status === 'uploading'}
                         className="ml-1 rounded border px-2 py-1 hover:bg-black/5 disabled:opacity-60"
-                        title={status === 'uploading' ? '업로드 중에는 삭제할 수 없어요' : '이 파일 삭제'}
+                        title={
+                          status === 'uploading'
+                            ? '업로드 중에는 삭제할 수 없어요'
+                            : '이 파일 삭제'
+                        }
                       >
                         삭제
                       </button>
@@ -1635,7 +1807,8 @@ export default function ProductCreateModal({
               </div>
 
               <p className="inline-block text-xs text-gray-500 bg-primary-20 p-1 my-2">
-                * 파일을 선택하면 자동으로 업로드됩니다. (대표 이미지 1개, 나머지는 추가이미지)
+                * 파일을 선택하면 자동으로 업로드됩니다. (대표 이미지 1개,
+                나머지는 추가이미지 / 대표이미지는 썸네일로 사용됩니다.)
               </p>
             </div>
           )}

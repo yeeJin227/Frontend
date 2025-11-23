@@ -63,6 +63,11 @@ export default function ProductImages({ images }: Props) {
     );
   }, [images]);
 
+  const thumbnails = useMemo(
+    () => candidates.map((img, index) => ({ img, index })),
+    [candidates],
+  );
+
   if (!candidates.length) {
     return (
       <div className="space-y-4">
@@ -86,10 +91,6 @@ export default function ProductImages({ images }: Props) {
   const goToImage = (index: number) => setCurrentImageIndex(index);
 
   const mainImage = candidates[currentImageIndex];
-  const thumbnails = candidates
-    .map((img, index) => ({ img, index }))
-    .filter(({ index }) => index !== currentImageIndex)
-    .slice(0, 4);
 
   return (
     <div className="space-y-4">
@@ -133,7 +134,7 @@ export default function ProductImages({ images }: Props) {
         </button>
 
         <div className="flex space-x-2 justify-center w-[460px]">
-          {thumbnails.map(({ img, index }) => (
+          {thumbnails.slice(0, 4).map(({ img, index }) => (
             <div
               key={`${img.displayUrl}-${index}`}
               className={`relative bg-gray-200 rounded-lg overflow-hidden cursor-pointer border-2 transition-all w-[111px] h-[111px] ${
