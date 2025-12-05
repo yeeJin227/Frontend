@@ -148,7 +148,12 @@ export default function Page() {
             )}
           </div>
 
-          <ProductOptions productUuid={uuid} />
+          <ProductOptions
+            productUuid={uuid}
+            basePrice={data?.discountPrice ?? data?.price}
+            options={data?.options}
+            additionals={data?.additionalProducts}
+          />
         </section>
       </main>
 

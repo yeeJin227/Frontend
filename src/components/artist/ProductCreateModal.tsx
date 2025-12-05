@@ -44,8 +44,68 @@ const fileKey = (f: File) => `${f.name}-${f.size}-${f.lastModified}`;
 
 // 허용 타입만: MAIN | ADDITIONAL
 type AllowedType = Extract<UploadType, 'MAIN' | 'ADDITIONAL'>;
+const normalizeUploadType = (t?: UploadType | null): UploadType => {
+  const normalized =
+    typeof t === 'string' ? t.trim().toUpperCase() : '';
+  if (normalized === 'MAIN') return 'MAIN';
+  if (normalized === 'THUMBNAIL') return 'THUMBNAIL';
+  if (normalized === 'ADDITIONAL') return 'ADDITIONAL';
+  return 'ADDITIONAL';
+};
+const resolveUploadType = (
+  img?: { type?: UploadType | null; fileType?: UploadType | null } | null,
+): UploadType => normalizeUploadType(img?.type ?? img?.fileType);
 const asAllowed = (t: UploadType | undefined): AllowedType =>
   t === 'MAIN' ? 'MAIN' : 'ADDITIONAL';
+const isSameUploadAsset = (
+  a?: { s3Key?: string | null; originalFileName?: string | null } | null,
+  b?: { s3Key?: string | null; originalFileName?: string | null } | null,
+) => {
+  if (!a || !b) return false;
+  if (a.s3Key && b.s3Key) return a.s3Key === b.s3Key;
+  if (a.originalFileName && b.originalFileName)
+    return a.originalFileName === b.originalFileName;
+  return false;
+};
+const dedupeImages = (list: UploadedImageInfo[]): UploadedImageInfo[] => {
+  const map = new Map<string, UploadedImageInfo>();
+  list.forEach((img) => {
+    const key =
+      img.s3Key ??
+      img.originalFileName ??
+      `${img.url ?? 'local'}-${(img as { id?: string }).id ?? ''}`;
+    map.set(key, img);
+  });
+  return Array.from(map.values());
+};
+const normalizeAssetName = (value?: string | null) =>
+  (value ?? '')
+    .trim()
+    .toLowerCase()
+    .replace(/thumbnail[-_]?/g, '')
+    .replace(/thumb[-_]?/g, '');
+const extractUrl = (img?: {
+  url?: string | null;
+  imageUrl?: string | null;
+  thumbnailUrl?: string | null;
+}) => (img?.url ?? img?.imageUrl ?? img?.thumbnailUrl ?? '')?.toString() ?? '';
+const isLinkedThumbnail = (
+  thumb: UploadedImageInfo,
+  main: UploadedImageInfo,
+) => {
+  if (resolveUploadType(thumb) !== 'THUMBNAIL') return false;
+  if (isSameUploadAsset(thumb, main)) return true;
+  const thumbName = normalizeAssetName(thumb.originalFileName);
+  const mainName = normalizeAssetName(main.originalFileName);
+  if (thumbName && mainName && thumbName === mainName) return true;
+  const thumbKey = normalizeAssetName(thumb.s3Key);
+  const mainKey = normalizeAssetName(main.s3Key);
+  if (thumbKey && mainKey && thumbKey === mainKey) return true;
+  const thumbUrl = normalizeAssetName(extractUrl(thumb));
+  const mainUrl = normalizeAssetName(extractUrl(main));
+  if (thumbUrl && mainUrl && thumbUrl === mainUrl) return true;
+  return false;
+};
 
 // 파일 타입 배열에서 MAIN 인덱스 찾기
 const findMainIndex = (types: UploadType[]) =>
@@ -155,10 +215,10 @@ function toProductCreateDto(
     isRestock: !!opts.isRestock,
 
     sellingStartDate: payload.plannedSale
-      ? dateOnly(payload.plannedSale.startAt)
+      ? payload.plannedSale.startAt
       : null,
     sellingEndDate: payload.plannedSale
-      ? dateOnly(payload.plannedSale.endAt)
+      ? payload.plannedSale.endAt
       : null,
 
     tags: tagIds,
@@ -175,10 +235,14 @@ function toProductCreateDto(
       additionalProductPrice: a.extraPrice ?? 0,
     })),
 
-    images: (opts.uploadedImages ?? []).map((img) => ({
-      ...img,
-      type: (img.type ?? 'ADDITIONAL') as UploadType,
-    })),
+    images: (opts.uploadedImages ?? []).map((img) => {
+      const resolved = resolveUploadType(img);
+      return {
+        ...img,
+        type: resolved,
+        fileType: img.fileType ?? resolved,
+      };
+    }),
 
     certification: payload.certification ?? false,
     origin: payload.origin,
@@ -214,6 +278,7 @@ type Props = {
     businessAddress?: string;
     telecomSalesNumber?: string;
   };
+  initialImages?: UploadedImageInfo[];
 };
 
 export default function ProductCreateModal({
@@ -229,6 +294,7 @@ export default function ProductCreateModal({
   onSaveSnapshot,
   initialBrand = '모리모리',
   initialBizInfo,
+  initialImages = [],
 }: Props) {
   // === 상태들 ===
   const [brand, setBrand] = useState(initialBrand);
@@ -302,6 +368,7 @@ export default function ProductCreateModal({
   const [files, setFiles] = useState<File[]>([]);
   const [fileTypes, setFileTypes] = useState<UploadType[]>([]);
   const [previews, setPreviews] = useState<string[]>([]);
+  const [thumbnailFlags, setThumbnailFlags] = useState<boolean[]>([]);
   const [uploadedImages, setUploadedImages] = useState<UploadedImageInfo[]>([]);
   const [submitting, setSubmitting] = useState(false);
 
@@ -411,16 +478,16 @@ export default function ProductCreateModal({
       setFiles([]);
       setPreviews([]);
       setUploadedImages([]);
+      setThumbnailFlags([]);
       setUploadingMap({});
       setFileS3Map({});
       setFileTypes([]);
-      return;
     }
 
-    if (mode === 'edit' && initialPayload) {
-      hydrateFromPayload(initialPayload);
+    else if (mode === 'edit' && initialPayload) {
+      hydrateFromPayload(initialPayload, initialImages);
     }
-  }, [open, mode, initialPayload, initialBrand, initialBizInfo]);
+  }, [open]);
 
   const subOptions = useMemo(() => {
     const root = catTree.find((c) => String(c.id) === category1);
@@ -455,7 +522,10 @@ export default function ProductCreateModal({
     };
   }, [open]);
 
-  function hydrateFromPayload(payload: ProductCreatePayload) {
+  function hydrateFromPayload(
+    payload: ProductCreatePayload,
+    images?: UploadedImageInfo[],
+  ) {
     setBrand(payload.brand ?? initialBrand);
     setTitle(payload.title ?? '');
     setModelName(payload.modelName ?? '');
@@ -509,74 +579,142 @@ export default function ProductCreateModal({
     }));
 
     setEditorValue(payload.description ?? '');
+    setFiles([]);
+    setFileTypes([]);
+    setPreviews([]);
+    setThumbnailFlags([]);
+    const serverImages = images ?? [];
+    setUploadedImages(dedupeImages(serverImages));
+    setUploadingMap(
+      Object.fromEntries(
+        serverImages.map((img, idx) => [
+          img.originalFileName ?? img.s3Key ?? `server-${idx}`,
+          'done',
+        ]),
+      ),
+    );
   }
 
-  // === 파일 선택 → 자동 업로드 ===
-  const handleSelectFiles = async (incoming: File[]) => {
-    if (incoming.length === 0) return;
+  // === 파일 선택 (즉시 업로드 X) ===
+  const handleSelectFiles = (incoming: File[]) => {
+    if (!incoming.length) return;
 
-    // 중복 제거
     const dedup = incoming.filter(
       (nf) => !files.some((ef) => fileKey(ef) === fileKey(nf)),
     );
-    if (dedup.length === 0) return;
+    if (!dedup.length) return;
 
-    // UI 표시용 파일/타입 상태 갱신
-    const nextFiles = [...files, ...dedup];
-    setFiles(nextFiles);
+    setFiles((prev) => [...prev, ...dedup]);
 
-    // 타입 기본값: 첫 파일만 MAIN, 나머지는 ADDITIONAL
-    const defaultsForNew: AllowedType[] = dedup.map((_, i) =>
-      files.length === 0 && i === 0 ? 'MAIN' : 'ADDITIONAL',
+    const hasServerMain = uploadedImages.some(
+      (img) => resolveUploadType(img) === 'MAIN',
     );
+    const hasPendingMain = fileTypes.some((type) => type === 'MAIN');
+    let canAssignMain = !hasServerMain && !hasPendingMain;
 
-    // 기존에 이미 MAIN이 있었다면 새로 들어온 것들은 모두 ADDITIONAL
-    const alreadyMainIdx = findMainIndex(fileTypes);
-    if (alreadyMainIdx >= 0) {
-      for (let i = 0; i < defaultsForNew.length; i++)
-        defaultsForNew[i] = 'ADDITIONAL';
-    }
+    const defaults: AllowedType[] = dedup.map(() => {
+      if (canAssignMain) {
+        canAssignMain = false;
+        return 'MAIN';
+      }
+      return 'ADDITIONAL';
+    });
 
-    setFileTypes((prev) => [...prev, ...defaultsForNew]);
+    setFileTypes((prev) => [...prev, ...defaults]);
 
-    // 업로드 상태: 신규 파일만 uploading 마킹
     setUploadingMap((prev) => {
       const next = { ...prev };
-      dedup.forEach((f) => (next[fileKey(f)] = 'uploading'));
+      dedup.forEach((f) => (next[fileKey(f)] = 'pending'));
+      return next;
+    });
+  };
+
+  const handleConfirmUploads = async () => {
+    const targets = files
+      .map((file, index) => ({
+        file,
+        index,
+        key: fileKey(file),
+      }))
+      .filter(({ key }) => (uploadingMap[key] ?? 'pending') !== 'done');
+
+    if (!targets.length) {
+      alert('업로드할 파일이 없습니다.');
+      return;
+    }
+
+    setUploadingMap((prev) => {
+      const next = { ...prev };
+      targets.forEach(({ key }) => (next[key] = 'uploading'));
       return next;
     });
 
-    // 신규로 선택한 파일만 업로드
+    const pendingFiles = targets.map(({ file }) => file);
+    const pendingTypes = targets.map(({ index }) =>
+      asAllowed(fileTypes[index]),
+    );
+
+    const serverMainExists = uploadedImages.some(
+      (img) => resolveUploadType(img) === 'MAIN',
+    );
+    const pendingMainExists = fileTypes.some(
+      (type, idx) => type === 'MAIN' && files[idx],
+    );
+    if (serverMainExists && pendingMainExists) {
+      alert('대표 이미지는 1개만 지정할 수 있습니다. 기존 대표 이미지를 삭제한 뒤 다시 시도해주세요.');
+      setUploadingMap((prev) => {
+        const next = { ...prev };
+        targets.forEach(({ key }) => (next[key] = 'pending'));
+        return next;
+      });
+      return;
+    }
+
     try {
-      const uploaded = await uploadProductImages(dedup, defaultsForNew);
+      const uploaded = await uploadProductImages(pendingFiles, pendingTypes);
+      const merged = uploaded.map((item, i) => {
+        const fallback = pendingTypes[i];
+        const resolved = normalizeUploadType(
+          item.type ?? item.fileType ?? fallback,
+        );
+        return {
+          ...item,
+          type: resolved,
+          fileType: item.fileType ?? resolved,
+        };
+      });
+      setUploadedImages((prev) => dedupeImages([...prev, ...merged]));
 
-      // ✅ 기존 타입과 겹치는 이미지는 교체 (누적 X)
-      setUploadedImages((prev) => [...prev, ...uploaded]);
+      const keepIndexes = files
+        .map((_, idx) => idx)
+        .filter((idx) => !targets.some((t) => t.index === idx));
+      setFiles((prev) => prev.filter((_, idx) => keepIndexes.includes(idx)));
+      setFileTypes((prev) => prev.filter((_, idx) => keepIndexes.includes(idx)));
+      setPreviews((prev) => prev.filter((_, idx) => keepIndexes.includes(idx)));
+      setThumbnailFlags((prev) =>
+        prev.filter((_, idx) => keepIndexes.includes(idx)),
+      );
 
-      // 파일 → s3Key 매핑 저장
       setFileS3Map((prev) => {
         const next = { ...prev };
-        dedup.forEach((f, i) => {
-          const key = fileKey(f);
-          const s3Key = uploaded[i]?.s3Key ?? null;
-          next[key] = s3Key;
+        targets.forEach(({ key }, i) => {
+          next[key] = uploaded[i]?.s3Key ?? null;
         });
         return next;
       });
 
-      // 상태 완료 처리
       setUploadingMap((prev) => {
         const next = { ...prev };
-        dedup.forEach((f) => (next[fileKey(f)] = 'done'));
+        targets.forEach(({ key }) => (next[key] = 'done'));
         return next;
       });
-    } catch (e: unknown) {
-      const msg = e instanceof Error ? e.message : '이미지 업로드 실패';
+    } catch (e) {
+      const msg =
+        e instanceof Error ? e.message : '이미지 업로드 실패';
       alert(msg);
-
       setUploadingMap((prev) => {
         const next = { ...prev };
-        dedup.forEach((f) => (next[fileKey(f)] = 'error'));
+        targets.forEach(({ key }) => (next[key] = 'error'));
         return next;
       });
     }
@@ -587,24 +725,26 @@ export default function ProductCreateModal({
     const allowed = asAllowed(newType);
     setFileTypes((prev) => {
       const updated = [...prev];
+      const hasServerMain = uploadedImages.some(
+        (img) => resolveUploadType(img) === 'MAIN',
+      );
+      const hasPendingMain = updated.some(
+        (type, i) => type === 'MAIN' && i !== index,
+      );
 
       if (allowed === 'MAIN') {
-        const oldMain = findMainIndex(updated);
-        if (oldMain >= 0 && oldMain !== index) updated[oldMain] = 'THUMBNAIL';
+        if (hasServerMain || hasPendingMain) {
+          alert(
+            '등록된 이미지에 이미 대표 이미지가 있습니다. 기존 대표 이미지를 삭제한 뒤 다시 시도해주세요.',
+          );
+          return prev;
+        }
         updated[index] = 'MAIN';
         return updated;
       }
 
       // allowed === 'ADDITIONAL'
-      const isTurningOffLastMain = updated[index] === 'MAIN';
       updated[index] = 'ADDITIONAL';
-
-      if (isTurningOffLastMain) {
-        // 다른 파일 중 첫 번째를 MAIN으로 승격 (없으면 그대로 두고, 저장 시 검증)
-        const otherIdx = updated.findIndex((_, i) => i !== index);
-        if (otherIdx >= 0) updated[otherIdx] = 'MAIN';
-      }
-
       return updated;
     });
   };
@@ -750,10 +890,17 @@ export default function ProductCreateModal({
     const upImgs = ctx.uploadedImages ?? [];
     if (upImgs.length < 1)
       errs.push('이미지는 최소 1개 이상 업로드해야 합니다.');
-    const types = upImgs.map((u) => asAllowed(u.type));
+    const types = upImgs.map((u) => asAllowed(resolveUploadType(u)));
     const mainCount = types.filter((t) => t === 'MAIN').length;
     if (mainCount !== 1)
       errs.push('대표 이미지(MAIN)는 정확히 1개여야 합니다.');
+    const hasThumbnail = upImgs.some(
+      (img) => resolveUploadType(img) === 'THUMBNAIL',
+    );
+    if (!hasThumbnail)
+      errs.push(
+        '대표 이미지를 최소 1장 업로드해주세요. 대표 이미지를 업로드하면 썸네일이 자동으로 다시 생성됩니다.',
+      );
 
     // KC 인증 여부
     if (p.certification == null) errs.push('KC 인증 여부는 필수입니다.');
@@ -836,12 +983,72 @@ export default function ProductCreateModal({
     });
 
     if (s3Key) {
-      setUploadedImages((prev) => prev.filter((u) => u.s3Key !== s3Key));
+      setUploadedImages((prev) =>
+        dedupeImages(prev.filter((u) => u.s3Key !== s3Key)),
+      );
     } else {
       setUploadedImages((prev) =>
-        prev.filter((u) => u.originalFileName !== target.name),
+        dedupeImages(prev.filter((u) => u.originalFileName !== target.name)),
       );
     }
+  };
+
+  const removeServerImage = async (idx: number) => {
+    const target = uploadedImages[idx];
+    if (!target) return;
+
+    if (resolveUploadType(target) === 'THUMBNAIL') {
+      const hasMain = uploadedImages.some(
+        (img, index) =>
+          index !== idx && resolveUploadType(img) === 'MAIN' && isLinkedThumbnail(target, img),
+      );
+      if (hasMain) {
+        alert(
+          '썸네일 이미지는 단독으로 삭제할 수 없습니다. 대표 이미지를 삭제할 시 썸네일 이미지도 같이 삭제됩니다.',
+        );
+        return;
+      }
+    }
+    const linkedThumbnails =
+      resolveUploadType(target) === 'MAIN'
+        ? uploadedImages
+            .map((img, i) => ({ img, index: i }))
+            .filter(
+              ({ img, index }) =>
+                index !== idx && isLinkedThumbnail(img, target),
+            )
+        : [];
+
+    const removals = [{ img: target, index: idx }, ...linkedThumbnails];
+
+    for (const { img } of removals) {
+      if (!img.s3Key) continue;
+      try {
+        await deleteProductImage(img.s3Key);
+      } catch (e) {
+        alert(
+          e instanceof Error
+            ? e.message
+            : '이미지를 삭제하지 못했습니다.',
+        );
+        return;
+      }
+    }
+
+    const removeIndexSet = new Set(removals.map(({ index }) => index));
+    setUploadedImages((prev) =>
+      dedupeImages(
+        prev.filter((_, i) => !removeIndexSet.has(i)).map((img) => ({ ...img })),
+      ),
+    );
+    setUploadingMap((prev) => {
+      const next = { ...prev };
+      removals.forEach(({ img, index }) => {
+        const key = img.s3Key ?? img.originalFileName ?? `server-${index}`;
+        delete next[key];
+      });
+      return next;
+    });
   };
 
   // 생성
@@ -933,6 +1140,10 @@ export default function ProductCreateModal({
     }
     onClose();
   };
+
+  const hasPendingUploads = files.some(
+    (file) => (uploadingMap[fileKey(file)] ?? 'pending') !== 'done',
+  );
 
   if (!open) return null;
 
@@ -1337,54 +1548,80 @@ export default function ProductCreateModal({
               <>
                 <div className="space-y-2">
                   <div className="text-sm font-medium">옵션</div>
-                  {options.map((opt, idx) => (
-                    <div
-                      key={opt.id}
-                      className="grid grid-cols-1 md:grid-cols-4 gap-2"
-                    >
-                      <input
-                        placeholder="옵션명"
-                        value={opt.name}
-                        onChange={(e) =>
-                          updateOption(idx, { name: e.target.value })
-                        }
-                        className="rounded border border-[var(--color-gray-200)] px-3 py-2 text-sm"
-                      />
-                      <input
-                        type="number"
-                        min={1}
-                        placeholder="재고"
-                        value={opt.stock ?? 0}
-                        onChange={(e) =>
-                          updateOption(idx, {
-                            stock: Number(e.target.value) || 0,
-                          })
-                        }
-                        className="rounded border border-[var(--color-gray-200)] px-3 py-2 text-sm"
-                      />
-                      <input
-                        type="number"
-                        min={0}
-                        placeholder="추가금(원)"
-                        value={opt.extraPrice ?? 0}
-                        onChange={(e) =>
-                          updateOption(idx, {
-                            extraPrice: Number(e.target.value) || 0,
-                          })
-                        }
-                        className="rounded border border-[var(--color-gray-200)] px-3 py-2 text-sm"
-                      />
-                      <div className="flex items-center justify-end">
-                        <button
-                          type="button"
-                          onClick={() => removeOption(idx)}
-                          className="text-sm border rounded px-3 py-2 hover:bg-black/5"
+                  {options.map((opt, idx) => {
+                    const nameId = `option-name-${opt.id}`;
+                    const stockId = `option-stock-${opt.id}`;
+                    const priceId = `option-price-${opt.id}`;
+                    return (
+                      <div
+                        key={opt.id}
+                        className="grid grid-cols-1 md:grid-cols-4 gap-2"
+                      >
+                        <label
+                          htmlFor={nameId}
+                          className="text-xs text-gray-500 flex flex-col gap-1"
                         >
-                          삭제
-                        </button>
+                          <span>옵션명</span>
+                          <input
+                            id={nameId}
+                            placeholder="옵션명"
+                            value={opt.name}
+                            onChange={(e) =>
+                              updateOption(idx, { name: e.target.value })
+                            }
+                            className="rounded border border-[var(--color-gray-200)] px-3 py-2 text-sm"
+                          />
+                        </label>
+                        <label
+                          htmlFor={stockId}
+                          className="text-xs text-gray-500 flex flex-col gap-1"
+                        >
+                          <span>재고</span>
+                          <input
+                            id={stockId}
+                            type="number"
+                            min={1}
+                            placeholder="재고"
+                            value={opt.stock ?? 0}
+                            onChange={(e) =>
+                              updateOption(idx, {
+                                stock: Number(e.target.value) || 0,
+                              })
+                            }
+                            className="rounded border border-[var(--color-gray-200)] px-3 py-2 text-sm"
+                          />
+                        </label>
+                        <label
+                          htmlFor={priceId}
+                          className="text-xs text-gray-500 flex flex-col gap-1"
+                        >
+                          <span>추가금(원)</span>
+                          <input
+                            id={priceId}
+                            type="number"
+                            min={0}
+                            placeholder="추가금(원)"
+                            value={opt.extraPrice ?? 0}
+                            onChange={(e) =>
+                              updateOption(idx, {
+                                extraPrice: Number(e.target.value) || 0,
+                              })
+                            }
+                            className="rounded border border-[var(--color-gray-200)] px-3 py-2 text-sm"
+                          />
+                        </label>
+                        <div className="flex items-end justify-end">
+                          <button
+                            type="button"
+                            onClick={() => removeOption(idx)}
+                            className="text-sm border rounded px-3 py-2 hover:bg-black/5"
+                          >
+                            삭제
+                          </button>
+                        </div>
                       </div>
-                    </div>
-                  ))}
+                    );
+                  })}
                   <button
                     type="button"
                     onClick={addOption}
@@ -1396,54 +1633,80 @@ export default function ProductCreateModal({
 
                 <div className="space-y-2">
                   <div className="text-sm font-medium">추가상품</div>
-                  {addons.map((ad, idx) => (
-                    <div
-                      key={ad.id}
-                      className="grid grid-cols-1 md:grid-cols-4 gap-2"
-                    >
-                      <input
-                        placeholder="추가상품명"
-                        value={ad.name}
-                        onChange={(e) =>
-                          updateAddon(idx, { name: e.target.value })
-                        }
-                        className="rounded border border-[var(--color-gray-200)] px-3 py-2 text-sm"
-                      />
-                      <input
-                        type="number"
-                        min={1}
-                        placeholder="재고"
-                        value={ad.stock ?? 0}
-                        onChange={(e) =>
-                          updateAddon(idx, {
-                            stock: Number(e.target.value) || 0,
-                          })
-                        }
-                        className="rounded border border-[var(--color-gray-200)] px-3 py-2 text-sm"
-                      />
-                      <input
-                        type="number"
-                        min={0}
-                        placeholder="가격(원)"
-                        value={ad.extraPrice ?? 0}
-                        onChange={(e) =>
-                          updateAddon(idx, {
-                            extraPrice: Number(e.target.value) || 0,
-                          })
-                        }
-                        className="rounded border border-[var(--color-gray-200)] px-3 py-2 text-sm"
-                      />
-                      <div className="flex items-center justify-end">
-                        <button
-                          type="button"
-                          onClick={() => removeOption(idx)}
-                          className="text-sm border rounded px-3 py-2 hover:bg-black/5"
+                  {addons.map((ad, idx) => {
+                    const stockId = `addon-stock-${ad.id}`;
+                    const priceId = `addon-price-${ad.id}`;
+                    const nameId = `addon-name-${ad.id}`;
+                    return (
+                      <div
+                        key={ad.id}
+                        className="grid grid-cols-1 md:grid-cols-4 gap-2"
+                      >
+                        <label
+                          htmlFor={nameId}
+                          className="text-xs text-gray-500 flex flex-col gap-1"
                         >
-                          삭제
-                        </button>
+                          <span>추가상품명</span>
+                          <input
+                            id={nameId}
+                            placeholder="추가상품명"
+                            value={ad.name}
+                            onChange={(e) =>
+                              updateAddon(idx, { name: e.target.value })
+                            }
+                            className="rounded border border-[var(--color-gray-200)] px-3 py-2 text-sm"
+                          />
+                        </label>
+                        <label
+                          htmlFor={stockId}
+                          className="text-xs text-gray-500 flex flex-col gap-1"
+                        >
+                          <span>재고</span>
+                          <input
+                            id={stockId}
+                            type="number"
+                            min={1}
+                            placeholder="재고"
+                            value={ad.stock ?? 0}
+                            onChange={(e) =>
+                              updateAddon(idx, {
+                                stock: Number(e.target.value) || 0,
+                              })
+                            }
+                            className="rounded border border-[var(--color-gray-200)] px-3 py-2 text-sm"
+                          />
+                        </label>
+                        <label
+                          htmlFor={priceId}
+                          className="text-xs text-gray-500 flex flex-col gap-1"
+                        >
+                          <span>가격(원)</span>
+                          <input
+                            id={priceId}
+                            type="number"
+                            min={0}
+                            placeholder="가격(원)"
+                            value={ad.extraPrice ?? 0}
+                            onChange={(e) =>
+                              updateAddon(idx, {
+                                extraPrice: Number(e.target.value) || 0,
+                              })
+                            }
+                            className="rounded border border-[var(--color-gray-200)] px-3 py-2 text-sm"
+                          />
+                        </label>
+                        <div className="flex items-end justify-end">
+                          <button
+                            type="button"
+                            onClick={() => removeOption(idx)}
+                            className="text-sm border rounded px-3 py-2 hover:bg-black/5"
+                          >
+                            삭제
+                          </button>
+                        </div>
                       </div>
-                    </div>
-                  ))}
+                    );
+                  })}
                   <button
                     type="button"
                     onClick={addAddon}
@@ -1714,11 +1977,55 @@ export default function ProductCreateModal({
             </div>
           </section>
 
+          {/* 등록된 이미지 (서버) */}
+          {uploadedImages.length > 0 && (
+            <div className="mt-4 space-y-3">
+              <div className="space-y-2">
+                <p className="text-sm font-medium">업로드 완료된 이미지</p>
+                {uploadedImages.map((img, idx) => {
+                  const resolvedType = asAllowed(resolveUploadType(img));
+                  return (
+                  <div
+                    key={img.s3Key ?? img.originalFileName ?? `server-${idx}`}
+                    className="flex items-center gap-3 text-sm"
+                  >
+                    <div className="w-10 h-10 rounded overflow-hidden bg-gray-100 flex items-center justify-center shrink-0">
+                      <img
+                        src={img.url}
+                        alt={img.originalFileName ?? `이미지 ${idx + 1}`}
+                        className="w-full h-full object-cover"
+                        draggable={false}
+                      />
+                    </div>
+                    <span className="flex-1 truncate">
+                      {img.originalFileName || img.s3Key || `등록된 이미지 ${idx + 1}`}
+                    </span>
+                    <div className="flex items-center gap-2">
+                      <span className="px-2 py-1 rounded text-xs bg-gray-100 text-gray-700 border border-[var(--color-gray-200)]">
+                        {resolvedType === 'MAIN' ? '대표 이미지' : '추가이미지'}
+                      </span>
+                      <span className="px-2 py-1 rounded text-xs bg-green-100 text-green-800">
+                        등록됨
+                      </span>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => removeServerImage(idx)}
+                      className="ml-2 rounded border px-2 py-1 hover:bg-black/5"
+                    >
+                      삭제
+                    </button>
+                  </div>
+                )})}
+              </div>
+            </div>
+          )}
+
           {/* 파일 타입 지정 + 개별 삭제 */}
           {files.length > 0 && (
             <div className="mt-4 space-y-3">
               <div className="space-y-2">
-                <p className="text-sm font-medium">업로드할 파일 타입</p>
+                <p className="text-sm font-medium">업로드 대기 중인 이미지</p>
                 {files.map((file, idx) => {
                   const key = fileKey(file);
                   const status = uploadingMap[key] ?? 'idle';
@@ -1810,6 +2117,16 @@ export default function ProductCreateModal({
                 * 파일을 선택하면 자동으로 업로드됩니다. (대표 이미지 1개,
                 나머지는 추가이미지 / 대표이미지는 썸네일로 사용됩니다.)
               </p>
+              <div className="flex justify-end">
+                <button
+                  type="button"
+                  onClick={handleConfirmUploads}
+                  disabled={!hasPendingUploads}
+                  className="px-4 py-2 rounded-md border border-primary text-primary disabled:opacity-40"
+                >
+                  이미지 선택 완료
+                </button>
+              </div>
             </div>
           )}
         </div>

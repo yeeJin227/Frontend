@@ -3,7 +3,7 @@
 import { useState, useMemo, type Key, useEffect, useRef } from 'react';
 import Button from '@/components/Button';
 import ProductCreateModal from '@/components/artist/ProductCreateModal';
-import { AdditionalProductResponse, OptionResponse, ProductCreatePayload, ProductRow, TagResponse } from '@/types/product';
+import { AdditionalProductResponse, OptionResponse, ProductCreatePayload, ProductRow, TagResponse, UploadedImageInfo, UploadType } from '@/types/product';
 import { deleteProduct, fetchArtistProducts, fetchProductDetail, getProducts } from '@/services/products';
 import SearchIcon from '@/assets/icon/search.svg';
 import ArtistDataTable, { ArtistTableColumn, SortDirection } from '@/components/artist/ArtistDataTable';
@@ -16,6 +16,7 @@ type RowEx = ProductRow & {
   productUuid?: string;
   // 최근 작성 스냅샷
   payloadSnapshot?: ProductCreatePayload;
+  imagesSnapshot?: UploadedImageInfo[];
 };
 
 type ArtistProductItem = {
@@ -411,9 +412,16 @@ export default function ProductsPage() {
   certification: detail.essentialInfo?.certification ?? false,
   description: detail.description ?? '',
 };
+    const imagesSnapshot: UploadedImageInfo[] =
+      detail.images?.map((img) => ({
+        url: img.url ?? '',
+        type: (img.type ?? img.fileType ?? 'ADDITIONAL') as UploadType,
+        s3Key: img.s3Key ?? crypto.randomUUID(),
+        originalFileName: img.originalFileName ?? '',
+      })) ?? [];
 
     // 모달 열기
-    setEditingRow({ ...row, productUuid: uuid, payloadSnapshot: payload });
+    setEditingRow({ ...row, productUuid: uuid, payloadSnapshot: payload, imagesSnapshot });
     setMode('edit');
     setOpenModal(true);
   } catch (err) {
@@ -527,7 +535,7 @@ export default function ProductsPage() {
       <ArtistDataTable
         columns={columns}
         rows={rows}
-        rowKey={(row) => row.productUuid ?? row.id}
+        rowKey={(row) => row.id}
         sortKey={sortKey as string | undefined}
         sortDirection={sortDirection}
         onSortChange={(key, direction) => updateSort(key, direction)}
@@ -572,6 +580,7 @@ export default function ProductsPage() {
           productId={editingRow?.productId}
           initialBrand="내 브랜드"
           initialPayload={editingRow?.payloadSnapshot}
+          initialImages={editingRow?.imagesSnapshot}
           onCreated={handleCreated}
           onUpdated={() => {
             setRefreshKey((k) => k + 1);

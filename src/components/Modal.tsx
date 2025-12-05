@@ -3,6 +3,7 @@
 import React from 'react';
 import clsx from 'clsx';
 import X from '@/assets/icon/x.svg';
+import { UploadedImageInfo } from '@/types/product';
 
 type ModalProps = {
   title?: string;
