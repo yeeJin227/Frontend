@@ -415,7 +415,12 @@ export default function ProductsPage() {
     const imagesSnapshot: UploadedImageInfo[] =
       detail.images?.map((img) => ({
         url: img.url ?? '',
-        type: (img.type ?? img.fileType ?? 'ADDITIONAL') as UploadType,
+        type:
+          img.type === "MAIN" ||
+          img.type === "THUMBNAIL" ||
+          img.type === "ADDITIONAL"
+            ? img.type
+            : "ADDITIONAL",
         s3Key: img.s3Key ?? crypto.randomUUID(),
         originalFileName: img.originalFileName ?? '',
       })) ?? [];
