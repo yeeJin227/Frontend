@@ -201,7 +201,7 @@ export default function ProductOptions({
     items: DropdownItem[],
     label: string,
     type: 'option' | 'addon',
-    ref: RefObject<HTMLDivElement>,
+    ref: RefObject<HTMLDivElement | null> | null,
   ) => {
     if (!items.length) return null;
     const isOpen = openDropdown === type;

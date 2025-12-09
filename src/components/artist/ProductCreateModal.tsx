@@ -44,7 +44,8 @@ const fileKey = (f: File) => `${f.name}-${f.size}-${f.lastModified}`;
 
 // 허용 타입만: MAIN | ADDITIONAL
 type AllowedType = Extract<UploadType, 'MAIN' | 'ADDITIONAL'>;
-const normalizeUploadType = (t?: UploadType | null): UploadType => {
+type NormalizedType = Extract<UploadType, 'MAIN' | 'THUMBNAIL' | 'ADDITIONAL'>;
+const normalizeUploadType = (t?: UploadType | null): NormalizedType => {
   const normalized =
     typeof t === 'string' ? t.trim().toUpperCase() : '';
   if (normalized === 'MAIN') return 'MAIN';
@@ -376,7 +377,7 @@ export default function ProductCreateModal({
 
   // 업로드 진행 상태
   const [uploadingMap, setUploadingMap] = useState<
-    Record<string, 'idle' | 'uploading' | 'done' | 'error'>
+    Record<string, 'idle' | 'uploading' | 'done' | 'error' | 'pending'>
   >({});
   // 파일 → s3Key 매핑
   const [fileS3Map, setFileS3Map] = useState<Record<string, string | null>>({});
@@ -672,7 +673,7 @@ export default function ProductCreateModal({
 
     try {
       const uploaded = await uploadProductImages(pendingFiles, pendingTypes);
-      const merged = uploaded.map((item, i) => {
+      const merged = uploaded.map((item, i): UploadedImageInfo => {
         const fallback = pendingTypes[i];
         const resolved = normalizeUploadType(
           item.type ?? item.fileType ?? fallback,
@@ -681,7 +682,7 @@ export default function ProductCreateModal({
           ...item,
           type: resolved,
           fileType: item.fileType ?? resolved,
-        };
+        } as UploadedImageInfo;
       });
       setUploadedImages((prev) => dedupeImages([...prev, ...merged]));
 
